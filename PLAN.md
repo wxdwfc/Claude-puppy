@@ -188,7 +188,7 @@ struct Sprite { let frames: [[String]]; let fps: Double }
 | MascotState | 聚合条件 | 动画 |
 |---|---|---|
 | `.alert` | 任一 session waiting | 上下跳动(offset ±2px)+ "!" 气泡,~4fps,最高优先级 |
-| `.working` | 否则任一 busy | 小跑/摇尾 3 帧循环,~5fps |
+| `.working` | 否则任一 busy | 左顾右盼 4 帧循环,~5fps |
 | `.celebrating` | 否则有 <10s 前完成的 | 跳跃 2 帧 + "✓" 气泡,随后衰减到 sleeping |
 | `.sleeping` | 其余(全 idle/无 session) | 呼吸 2 帧 1fps + 飘 "z" |
 
@@ -206,7 +206,7 @@ struct Sprite { let frames: [[String]]; let fps: Double }
 *验证*:首次点击行恰好弹一次 Automation 授权;之后点不同 window/tab 的 session 均正确选中并激活;`tty=??` 的 session 优雅降级(仅激活 iTerm)。
 
 **M4 — 动画打磨**:全套 sprite + 状态机接线 + 徽标/庆祝时效 + 面板边缘翻转 + 排序 + 遮挡暂停动画。
-*验证*:驱动一个 session 走 idle→busy→waiting→busy→idle,动画依次 睡觉→小跑→跳动!→小跑→跳跃✓→睡觉;两个 session 混合状态时优先级正确;Activity Monitor 确认空闲时 CPU ~0%。
+*验证*:驱动一个 session 走 idle→busy→waiting→busy→idle,动画依次 睡觉→左顾右盼→跳动!→左顾右盼→跳跃✓→睡觉;两个 session 混合状态时优先级正确;Activity Monitor 确认空闲时 CPU ~0%。
 
 **明确不做进 v1**(记录备将来):开机自启(`SMAppService.mainApp.register()`)、真 PNG 美术、基于 Claude Code hooks 的 push 更新(用户 settings.json 目前无任何 hooks,这个通道是空闲的,若未来注册表 schema 变了可作为更稳定的契约)。
 
