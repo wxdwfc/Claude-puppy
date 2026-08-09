@@ -15,10 +15,8 @@ struct MascotView: View {
     private var showsDoneBadge: Bool { store.celebrating && store.mascot != .celebrating }
 
     var body: some View {
+        // 鼠标事件全归 MascotContainerView 管,这里一律不参与命中测试。
         ZStack(alignment: .topLeading) {
-            // 透明背景也要能接鼠标事件,否则只有狗身上的像素可点。
-            Color.clear.contentShape(Rectangle())
-
             if store.mascotVisible {
                 TimelineView(.periodic(from: .now, by: 1.0 / sprite.fps)) { context in
                     frameBody(index: frameIndex(at: context.date))

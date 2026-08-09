@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mascotPanel: MascotPanel!
     private var listController: SessionListController!
     private var bubbleStack: BubbleStackController!
+    /// 单击跳走前的位置 —— 双击的第一下要能撤回。
+    private var hopOrigin: NSPoint?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
@@ -22,11 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.bubbleStack?.isSuppressed = open
         }
 
-        let hosting = MascotHostingView(rootView: MascotView(store: store))
-        hosting.onClick = { [weak self] in self?.toggleList() }
-        hosting.menu = buildMenu()
+        let mascot = MascotContainerView(rootView: MascotView(store: store))
+        mascot.onClick = { [weak self] in self?.hop() }
+        mascot.onDoubleClick = { [weak self] in self?.undoHopThenToggleList() }
+        mascot.menu = buildMenu()
 
-        mascotPanel = MascotPanel(contentView: hosting)
+        mascotPanel = MascotPanel(contentView: mascot)
         mascotPanel.placeDefaultIfNeeded()
         mascotPanel.orderFrontRegardless()
 
@@ -67,6 +70,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 交互
 
+    /// 单击 = 换窝:蹲到当前屏幕的下一个角。挡住东西时一下就能把它扒拉开,不用瞄准拖。
+    private func hop() {
+        // 列表是锚在小狗上的,狗跑了它留在原地就成了孤儿 —— 先收起来。
+        listController.close()
+        hopOrigin = mascotPanel.frame.origin
+        mascotPanel.hopToNextPerch { [weak self] in self?.bubbleStack.relayout() }
+    }
+
+    /// 双击 = 开列表。双击的第一下已经先跳了一格,这里把它送回去。
+    private func undoHopThenToggleList() {
+        if let origin = hopOrigin {
+            hopOrigin = nil
+            mascotPanel.move(to: origin, duration: 0.12) { [weak self] in
+                guard let self else { return }
+                self.bubbleStack.relayout()
+                self.toggleList()   // 列表锚在小狗身上,等它落回原位再开
+            }
+        } else {
+            toggleList()
+        }
+    }
+
     private func toggleList() {
         listController.toggle(anchoredTo: mascotPanel.frame)
     }
@@ -101,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
+        // 左键让给了「换窝」,列表除了双击还得有个稳的入口。
+        menu.addItem(withTitle: "展开列表", action: #selector(showList), keyEquivalent: "")
+            .target = self
         menu.addItem(withTitle: "刷新", action: #selector(refreshNow), keyEquivalent: "")
             .target = self
         menu.addItem(withTitle: "回到默认位置", action: #selector(resetPosition), keyEquivalent: "")
@@ -111,14 +139,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
+    @objc private func showList() { openList() }
+
     @objc private func refreshNow() { store.refresh() }
 
     @objc private func resetPosition() {
-        guard let visible = NSScreen.main?.visibleFrame else { return }
-        let margin: CGFloat = 24
-        mascotPanel.setFrameOrigin(NSPoint(x: visible.maxX - mascotPanel.frame.width - margin,
-                                           y: visible.minY + margin))
-        mascotPanel.saveFrame(usingName: "PuppyMascot")
+        guard let home = mascotPanel.perches.first else { return }
+        mascotPanel.move(to: home, duration: 0.2) { [weak self] in self?.bubbleStack.relayout() }
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
