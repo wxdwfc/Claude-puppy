@@ -13,6 +13,9 @@ final class SessionListController {
     private var cancellable: AnyCancellable?
     private var anchor: NSRect = .zero
 
+    /// 开合都要通知外面 —— 关闭有一半是内部的 event monitor 触发的,调用方看不见。
+    var onOpenChange: ((Bool) -> Void)?
+
     var isOpen: Bool { panel.isVisible }
 
     init(store: SessionStore, onSelect: @escaping (SessionRow) -> Void) {
@@ -40,9 +43,11 @@ final class SessionListController {
     }
 
     func open(anchoredTo anchorFrame: NSRect) {
+        guard !isOpen else { return }
         anchor = anchorFrame
         layout()
         panel.orderFrontRegardless()
+        onOpenChange?(true)
 
         // 面板开着时行数会变(session 来去),高度得跟着变。
         cancellable = store.$rows
@@ -71,6 +76,7 @@ final class SessionListController {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         globalMonitor = nil
         localMonitor = nil
+        onOpenChange?(false)
     }
 
     /// 贴着小狗放;顶到屏幕边缘就翻到另一侧。

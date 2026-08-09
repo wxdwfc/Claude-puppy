@@ -2,19 +2,14 @@ import Foundation
 import Combine
 
 /// 唯一的 source of truth。事件驱动:FSEvents 触发重扫,30s 低频兜底,
-/// 另外在「完成徽标 / 庆祝动画」到期的确切时刻排一次性定时器 —— 没有任何轮询。
+/// 另外在「完成徽标 / 庆祝动画 / 气泡分钟标签」到期的确切时刻排一次性定时器 —— 没有任何轮询。
 @MainActor
 final class SessionStore: ObservableObject {
 
-    /// 完成徽标(列表里的 ✅)显示时长。
+    /// 完成徽标(列表里的 ✅)显示时长,同时也是「跑完了」气泡在栈里活多久。
     static let completedBadgeWindow: TimeInterval = 60
     /// 庆祝动画时长。
     static let celebrateWindow: TimeInterval = 10
-    /// 气泡停留时长:「在等你」比「跑完了」更需要被看见,留久一点。
-    static let waitingBubbleDuration: TimeInterval = 12
-    static let doneBubbleDuration: TimeInterval = 6
-    /// 一直没人管的话,隔这么久再催一次 —— 漏看一次不至于就永远漏掉。
-    static let nagInterval: TimeInterval = 90
     /// 兜底重扫周期:防漏事件 + 清理死 pid 残留。
     static let fallbackInterval: TimeInterval = 30
     /// 文件被截断重写的瞬间读不出来时,沿用上一次好数据的时长 —— 防止行闪烁。
@@ -25,8 +20,9 @@ final class SessionStore: ObservableObject {
     /// 最近 `celebrateWindow` 内有 session 跑完 —— 独立于 `mascot`,
     /// 这样别的 session 还在跑的时候也能冒 ✓,不会被 working 吃掉。
     @Published private(set) var celebrating: Bool = false
-    /// 小狗当前要说的话,nil = 不说话。到期由 store 自己清掉。
-    @Published private(set) var announcement: Announcement?
+    /// 小狗身边那摞气泡,顺序与 `rows` 一致(等最久的在前 = 贴着小狗那一格)。
+    /// 纯派生量,没有任何独立生命周期 —— 见 `BubbleItem`。
+    @Published private(set) var bubbles: [BubbleItem] = []
     /// 吉祥物窗口被完全遮挡时置 false,视图据此停掉动画。
     @Published var mascotVisible: Bool = true
     /// 递增即抖一下 —— 用于 iTerm 跳转失败的无声反馈。
@@ -43,9 +39,6 @@ final class SessionStore: ObservableObject {
 
     private var lastSeen: [Int32: (status: SessionStatus, sessionId: String?)] = [:]
     private var completions: [Int32: Completion] = [:]
-    private var announcementSeq = 0
-    /// 每个还在等你的 session 上一次被「说出来」的时刻,用来控制催的节奏。
-    private var lastNagged: [Int32: Date] = [:]
     private var lastGood: [Int32: (info: SessionInfo, at: Date)] = [:]
     private var staleDeadline: Date?
 
@@ -102,6 +95,7 @@ final class SessionStore: ObservableObject {
             return now.timeIntervalSince(t) < Self.celebrateWindow
         }
         mascot = MascotState.derive(rows: rows, celebrating: celebrating)
+        bubbles = rows.compactMap { BubbleItem(row: $0, now: now) }
     }
 
     // MARK: - 扫描 + diff
@@ -111,7 +105,6 @@ final class SessionStore: ObservableObject {
         let now = Date()
         let scanned = merge(result, now: now)
 
-        var justFinished: [SessionInfo] = []
         for s in scanned {
             let prev = lastSeen[s.pid]
             // pid 被复用(同 pid 换了 sessionId):上一条记录跟眼前这个 session 无关,全清。
@@ -122,7 +115,6 @@ final class SessionStore: ObservableObject {
             case .idle where continuous && prev?.status == .busy:
                 // 注册表里没有 "done" —— busy → idle 就是一轮任务完成。
                 completions[s.pid] = Completion(at: now, sessionId: s.sessionId)
-                justFinished.append(s)
             case .busy, .waiting:
                 // 又开始干活 / 需要介入 —— 上一轮的完成徽标立刻作废。
                 completions[s.pid] = nil
@@ -146,68 +138,20 @@ final class SessionStore: ObservableObject {
         })
         let newCelebrating = completions.values.contains { now.timeIntervalSince($0.at) < Self.celebrateWindow }
         let newMascot = MascotState.derive(rows: newRows, celebrating: newCelebrating)
+        let newBubbles = newRows.compactMap { BubbleItem(row: $0, now: now) }
 
-        let previousAnnouncementID = announcement?.id
-        var changed = newRows != rows || newMascot != mascot || newCelebrating != celebrating
+        let changed = newRows != rows
+            || newMascot != mascot
+            || newCelebrating != celebrating
+            || newBubbles != bubbles
 
         rows = newRows
         celebrating = newCelebrating
         mascot = newMascot
-        updateAnnouncement(scanned: scanned, justFinished: justFinished, now: now)
-        changed = changed || announcement?.id != previousAnnouncementID
+        bubbles = newBubbles
 
         scheduleNextExpiry(now: now)
         if changed { onChange?() }
-    }
-
-    // MARK: - 说话
-
-    /// 决定小狗这一刻该说什么。规则:
-    /// 1. 到期的话先收起;
-    /// 2. 「在等你」优先 —— 第一次进 waiting 立刻说,一直没人管就每 `nagInterval` 催一次;
-    /// 3. 没人等你的时候才轮到「跑完了」,而且不顶掉正在显示的等待提示。
-    private func updateAnnouncement(scanned: [SessionInfo], justFinished: [SessionInfo], now: Date) {
-        if let current = announcement, now >= current.expiresAt { announcement = nil }
-
-        let waiters = scanned.filter { $0.status == .waiting }
-        // 不再等待(或已经退出)的 session 不该保留催促记录 —— 下次再等你时要立刻说。
-        let waitingPIDs = Set(waiters.map(\.pid))
-        lastNagged = lastNagged.filter { waitingPIDs.contains($0.key) }
-
-        // 已经在说一句「在等你」了就先说完 —— 同时有两个 session 在等的时候,
-        // 第二句会在第一句到期后的那次 refresh 里补上,而不是抢在 0.1 秒后闪一下。
-        if case .waiting = announcement?.kind { return }
-
-        let due = waiters
-            .filter { now.timeIntervalSince(lastNagged[$0.pid] ?? .distantPast) >= Self.nagInterval }
-            .min { ($0.statusUpdatedAt ?? .distantPast) < ($1.statusUpdatedAt ?? .distantPast) }
-
-        if let due {
-            lastNagged[due.pid] = now
-            say(.waiting(due.waitingFor), for: due, duration: Self.waitingBubbleDuration, now: now)
-            return
-        }
-
-        guard let finished = justFinished.last else { return }
-        say(.done, for: finished, duration: Self.doneBubbleDuration, now: now)
-    }
-
-    private func say(_ kind: Announcement.Kind, for info: SessionInfo, duration: TimeInterval, now: Date) {
-        announcementSeq += 1
-        announcement = Announcement(
-            id: announcementSeq,
-            kind: kind,
-            pid: info.pid,
-            name: info.displayName,
-            expiresAt: now.addingTimeInterval(duration)
-        )
-    }
-
-    /// 点了气泡 / 跳过去了 —— 立刻闭嘴,别等自然到期。
-    func dismissAnnouncement() {
-        guard announcement != nil else { return }
-        announcement = nil
-        scheduleNextExpiry(now: Date())
     }
 
     /// 把「这次读到的」和「上次读到的好数据」拼起来:
@@ -227,7 +171,7 @@ final class SessionStore: ObservableObject {
         return infos
     }
 
-    /// 完成徽标和庆祝动画都是「到点就该变」的状态。与其每秒轮询,
+    /// 完成徽标、庆祝动画、气泡上的分钟标签都是「到点就该变」的状态。与其每秒轮询,
     /// 不如在最近的一个到期时刻排一发一次性定时器。
     private func scheduleNextExpiry(now: Date) {
         expiryTimer?.cancel()
@@ -235,18 +179,25 @@ final class SessionStore: ObservableObject {
 
         var deadlines: [TimeInterval] = []
         if let staleDeadline { deadlines.append(staleDeadline.timeIntervalSince(now)) }
-        if let announcement { deadlines.append(announcement.expiresAt.timeIntervalSince(now)) }
-        // 还在等你的 session:到点得再催一次。
-        for at in lastNagged.values { deadlines.append(Self.nagInterval - now.timeIntervalSince(at)) }
         for completion in completions.values {
             let age = now.timeIntervalSince(completion.at)
             if age < Self.celebrateWindow { deadlines.append(Self.celebrateWindow - age) }
             if age < Self.completedBadgeWindow { deadlines.append(Self.completedBadgeWindow - age) }
         }
+        // 气泡上的「已等 40m」:在下一个整分边界醒一次就够。栈空时一次都不排 ——
+        // 这是这个常驻窗口唯一的周期性唤醒,且下面给了 1s leeway 让系统合并掉。
+        for row in rows where BubbleItem(row: row, now: now) != nil {
+            guard let since = row.info.statusUpdatedAt else { continue }
+            let age = now.timeIntervalSince(since)
+            guard age >= 0 else { continue }
+            deadlines.append((age / 60).rounded(.down) * 60 + 60 - age)
+        }
         guard let next = deadlines.min() else { return }
 
+        let delay = max(0.1, next)
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + max(0.1, next), leeway: .milliseconds(200))
+        // 远处的唤醒给大 leeway,近处的(动画到期)要准。
+        timer.schedule(deadline: .now() + delay, leeway: delay > 5 ? .seconds(1) : .milliseconds(200))
         timer.setEventHandler { [weak self] in self?.refresh() }
         timer.resume()
         expiryTimer = timer

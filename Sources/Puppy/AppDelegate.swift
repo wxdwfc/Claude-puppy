@@ -9,13 +9,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let focuser = ITermFocuser()
     private var mascotPanel: MascotPanel!
     private var listController: SessionListController!
-    private var bubbleController: BubbleController!
+    private var bubbleStack: BubbleStackController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
 
         listController = SessionListController(store: store) { [weak self] row in
             self?.focus(row)
+        }
+        // 列表和栈在默认位置下必然互相盖住,而列表本来就含了栈的全部信息 —— 开列表就让栈退场。
+        listController.onOpenChange = { [weak self] open in
+            self?.bubbleStack?.isSuppressed = open
         }
 
         let hosting = MascotHostingView(rootView: MascotView(store: store))
@@ -26,13 +30,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mascotPanel.placeDefaultIfNeeded()
         mascotPanel.orderFrontRegardless()
 
-        // 气泡贴着小狗放,所以锚点每次现取 —— 小狗被拖走了也跟得上。
-        bubbleController = BubbleController(
+        // 气泡栈贴着小狗放,所以锚点每次现取。
+        bubbleStack = BubbleStackController(
             store: store,
             anchor: { [weak self] in self?.mascotPanel.frame ?? .zero },
-            onSelect: { [weak self] pid in self?.focus(pid: pid) }
+            onSelect: { [weak self] pid in self?.focus(pid: pid) },
+            onOverflow: { [weak self] in self?.openList() }
         )
-        bubbleController.start()
+        bubbleStack.start()
+
+        // 栈是常驻的,小狗被拖走时得整摞跟过去。
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: mascotPanel,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.bubbleStack.relayout() }
+        }
 
         // 被别的窗口完全盖住时停掉动画时钟 —— 这是省电的最后一环。
         NotificationCenter.default.addObserver(
@@ -55,6 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleList() {
         listController.toggle(anchoredTo: mascotPanel.frame)
+    }
+
+    /// 点栈顶那条「还有 N 个」—— 完整清单在列表里,只开不关。
+    private func openList() {
+        listController.open(anchoredTo: mascotPanel.frame)
     }
 
     private func focus(_ row: SessionRow) {

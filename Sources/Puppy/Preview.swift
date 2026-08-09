@@ -20,10 +20,12 @@ enum Preview {
         write(strip(for: .alert, doneBadge: true),
               to: base.appendingPathComponent("mascot-alert-done.png"))
 
-        // 气泡:小狗在左边和在右边两种朝向都画一遍。
-        let bubbles = VStack(alignment: .leading, spacing: 10) {
-            BubbleView(announcement: sampleAnnouncement(.waiting("permission prompt")), tailOnRight: true)
-            BubbleView(announcement: sampleAnnouncement(.done), tailOnRight: false)
+        // 气泡栈:小狗在左边和在右边两种朝向都画一遍,顺便撑到溢出看「还有 N 个」。
+        let stackStore = SessionStore()
+        stackStore.installPreviewRows(Self.sampleStackRows())
+        let bubbles = HStack(alignment: .bottom, spacing: 24) {
+            BubbleStackView(store: stackStore, tailOnRight: true, animated: false)
+            BubbleStackView(store: stackStore, tailOnRight: false, animated: false)
         }
         .padding(12)
         .background(Color(white: 0.18))
@@ -64,27 +66,41 @@ enum Preview {
         try? png.write(to: url)
     }
 
-    private static func sampleAnnouncement(_ kind: Announcement.Kind) -> Announcement {
-        Announcement(id: 1, kind: kind, pid: 101,
-                     name: kind == .done ? "puppy-6e" : "agentic-research-67",
-                     expiresAt: Date().addingTimeInterval(12))
-    }
-
     private static func sampleRows() -> [SessionRow] {
         let now = Date()
-        func info(_ pid: Int32, _ name: String, _ status: SessionStatus, _ waiting: String? = nil, ago: TimeInterval) -> SessionInfo {
-            SessionInfo(pid: pid, sessionId: nil, cwd: "/Users/wxd/lab/personal/\(name)", name: "\(name)-a1",
-                        kind: "interactive", entrypoint: "cli", version: "2.1.226",
-                        status: status, waitingFor: waiting,
-                        startedAt: now.addingTimeInterval(-3600),
-                        statusUpdatedAt: now.addingTimeInterval(-ago))
-        }
         return [
-            SessionRow(info: info(101, "puppy", .waiting, "permission prompt", ago: 184), completedAt: nil),
-            SessionRow(info: info(102, "cse-csp-lecture", .busy, ago: 42), completedAt: nil),
-            SessionRow(info: info(103, "agentic-research", .idle, ago: 8), completedAt: now.addingTimeInterval(-8)),
-            SessionRow(info: info(104, "dotfiles", .idle, ago: 5400), completedAt: nil),
+            row(101, "puppy", .waiting, "permission prompt", ago: 184, now: now),
+            row(102, "cse-csp-lecture", .busy, ago: 42, now: now),
+            row(103, "agentic-research", .idle, ago: 8, now: now, completed: true),
+            row(104, "dotfiles", .idle, ago: 5400, now: now),
         ]
+    }
+
+    /// 专门喂给气泡栈:7 个待办,超过 `maxVisible` 才画得出「还有 N 个」那一条。
+    private static func sampleStackRows() -> [SessionRow] {
+        let now = Date()
+        return [
+            row(101, "puppy", .waiting, "permission prompt", ago: 2400, now: now),
+            row(102, "agentic-research", .waiting, "plan approval", ago: 184, now: now),
+            row(103, "cse-csp-lecture", .waiting, ago: 95, now: now),
+            row(104, "dotfiles", .waiting, "edit file", ago: 40, now: now),
+            row(105, "kernel-bpf", .waiting, ago: 12, now: now),
+            row(106, "paper-osdi", .idle, ago: 8, now: now, completed: true),
+            row(107, "infra-terraform", .idle, ago: 30, now: now, completed: true),
+        ]
+    }
+
+    private static func row(_ pid: Int32, _ name: String, _ status: SessionStatus,
+                            _ waiting: String? = nil, ago: TimeInterval, now: Date,
+                            completed: Bool = false) -> SessionRow {
+        let info = SessionInfo(
+            pid: pid, sessionId: nil, cwd: "/Users/wxd/lab/personal/\(name)", name: "\(name)-a1",
+            kind: "interactive", entrypoint: "cli", version: "2.1.226",
+            status: status, waitingFor: waiting,
+            startedAt: now.addingTimeInterval(-3600),
+            statusUpdatedAt: now.addingTimeInterval(-ago)
+        )
+        return SessionRow(info: info, completedAt: completed ? now.addingTimeInterval(-ago) : nil)
     }
 }
 

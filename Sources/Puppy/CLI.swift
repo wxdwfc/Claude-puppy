@@ -17,14 +17,14 @@ enum CLI {
             guard let store else { return }
             let stamp = timeFormatter.string(from: Date())
             print("\n[\(stamp)] mascot: \(banner(store))")
-            if let announcement = store.announcement { print("  💬 \(announcement.debugLine)") }
+            for bubble in store.bubbles { print("  💬 \(bubble.debugLine)") }
             printTable(store.rows, header: nil)
         }
         store.start()
         print("watching \(SessionRegistryReader.directory.path) — Ctrl-C 退出")
         let stamp = timeFormatter.string(from: Date())
         print("\n[\(stamp)] mascot: \(banner(store))")
-        if let announcement = store.announcement { print("  💬 \(announcement.debugLine)") }
+        for bubble in store.bubbles { print("  💬 \(bubble.debugLine)") }
         printTable(store.rows, header: nil)
         dispatchMain()
     }
