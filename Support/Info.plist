@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Puppy</string>
+    <key>CFBundleDisplayName</key>
+    <string>Puppy</string>
+    <key>CFBundleExecutable</key>
+    <string>Puppy</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.wxd.puppy</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <!-- 无 Dock 图标、不出现在 Cmd-Tab -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- 点击 session 行跳转 iTerm2 时,TCC 弹窗里显示的理由 -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Puppy 需要控制 iTerm2,才能在你点击某个 session 时跳到对应的窗口和标签页。</string>
+</dict>
+</plist>
