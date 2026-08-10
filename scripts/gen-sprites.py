@@ -21,9 +21,12 @@ PAL = {
     'O': (226, 158, 26),    # 黄的暗部
     'R': (232, 66, 60),     # 脸蛋红
     'r': (255, 92, 62),     # 脸蛋放电时的亮红 —— 只提亮度不掉饱和,掉了就成粉的
-    'W': (255, 255, 255),   # 眼里的反光
+    'W': (255, 255, 255),   # 眼里的反光 / 放大镜的高光
     'B': (156, 96, 32),     # 尾巴根的褐色
     'T': (236, 118, 130),   # 舌头
+    'G': (176, 170, 164),   # 侦探帽的暖灰 —— 电影里是人字呢,取个中间调
+    'g': (122, 114, 108),   # 帽檐的深灰,也当帽身上的呢子斑点
+    'L': (190, 222, 238),   # 放大镜的镜片蓝
 }
 
 # ---- 轮廓(填充区,描边由 outline() 自动吃掉最外一圈)-----------------------
@@ -163,6 +166,52 @@ MOUTH_Y = 21
 ARM_L = [(24,7), (25,6), (26,6), (27,7)]
 
 
+# ---- 侦探三件套(照着电影版:灰呢帽 + 皱眉 + 放大镜)---------------------------
+# 三样都直接盖在成品上,不走 mask —— 帽子和放大镜本来就该压在轮廓外/身体前。
+# 帽子不能用 outline() 自动描边:帽檐一共两行,上下沿一描,整条帽檐就全黑了,
+# 所以这几行是手抠的。帽身 y5-y9 收成圆顶,y10 外扩一圈 + y11 换深灰 = 帽檐,
+# 「比帽身宽出一截再压一档暗」两个信号叠在一起,两行也读得出是檐。
+# 帽子盖掉耳根(y9-y11),耳朵只从帽子两侧露出尖 —— 电影里正是这个关系,
+# 而且黑耳尖整段保住了,辨识度不掉。
+def stamp_cap(grid):
+    grid[4][12] = 'K'                                    # 顶上的小扣子
+    for x in range(10, 15): grid[5][x] = 'K'             # 圆顶的上沿
+    crown = [(6,9,15), (7,8,16), (8,7,17), (9,6,18), (10,4,20)]
+    for y, a, b in crown:
+        grid[y][a] = 'K'; grid[y][b] = 'K'
+        for x in range(a+1, b): grid[y][x] = 'G'
+    grid[11][3] = 'K'; grid[11][21] = 'K'
+    for x in range(4, 21): grid[11][x] = 'g'             # 帽檐:压一档暗
+    for y, x in ((7,11), (8,14), (9,9)):                 # 呢子的斑点,故意不对称
+        grid[y][x] = 'g'
+
+
+# 皱眉:外高内低的两小段斜杠,搭在眼睛正上方。电影版皮卡丘的「严肃脸」主要就是
+# 这两道眉 —— 眼睛照旧用 5×5 的憨版,凶一分是侦探,凶两分就成反派了。
+# 眉毛不跟着 lookLeft/lookRight 的 dx 走,和脸蛋同理:长在脸上不动的东西。
+BROWS = [(12,5), (12,6), (13,7), (13,8),
+         (12,18), (12,19), (13,16), (13,17)]
+
+
+# 放大镜端在身前左下,镜柄横着接到左手的弧上 —— 照片里就是这个拿法。
+# 整只画在 x0-x6 的空地上:下巴(y23 收到 x8)和身子(x5 起)的左边正好空出一块,
+# 镜圈整个落在透明背景上,镜片的蓝才有对比。第一版把镜圈举到脸旁(y17-y21),
+# 圈的右半压在脸的左沿上,和脸的描边并成一体,整只镜子只剩一粒白点。
+# 镜片里给一格反光,不给的话 3×3 的纯蓝块像贴了片创可贴。
+# 镜柄用尾巴根的褐色,不用黑:柄的落点(y23-y24, x5-x7)四邻全是黑 ——
+# 镜圈的右沿、身子的描边、手臂的弧 —— 黑柄画上去就融进这坨黑里,
+# 镜圈立刻读成「粘在身上的球」。褐柄从黑块里跳出来,「圈 + 柄」才成立。
+def stamp_glass(grid):
+    ring = [(21,1),(21,2),(21,3),(22,0),(22,4),(23,0),(23,4),
+            (24,0),(24,4),(25,1),(25,2),(25,3)]
+    for y, x in ring: grid[y][x] = 'K'
+    for y in range(22, 25):
+        for x in range(1, 4): grid[y][x] = 'L'
+    grid[22][1] = 'W'
+    for y, x in ((23,5),(23,6)):                         # 镜柄,末端接到 (24,7) 的手
+        grid[y][x] = 'B'
+
+
 def eyes_normal(dx=0):
     # 反光给到 2×2。一格的反光在 5×5 的眼睛里太小,读不出「亮」,只像脏了一点。
     cells, hi = [], []
@@ -276,6 +325,11 @@ def compose(eye='normal', mouth='closed', cheek_bright=False, cheek_big=False, d
     else:
         stamp(grid, mouth_closed(dx), 'K', body=body)
 
+    stamp_cap(grid)
+    for y, x in BROWS:
+        grid[y][x] = 'K'
+    stamp_glass(grid)
+
     return [''.join(r) for r in grid]
 
 
@@ -344,5 +398,17 @@ if __name__ == '__main__':
     base = compose()
     png(base, f'{out}/base.png')
     sheet([compose(**POSES[k]) for k in POSES], f'{out}/sheet.png')
+    # 直接吐 Swift 语法:base 全量 + 每个姿势对 base 的行 diff,贴回 Sprites.swift。
+    print('    private static let base: [String] = [')
     for line in base:
-        print(line)
+        print(f'        "{line}",')
+    print('    ]')
+    for name, kw in POSES.items():
+        if name == 'base':
+            continue
+        rows = compose(**kw)
+        diff = [(i, r) for i, (r, b) in enumerate(zip(rows, base)) if r != b]
+        print(f'    private static let {name}: [Int: String] = [')
+        for i, r in diff:
+            print(f'        {i}: "{r}",')
+        print('    ]')

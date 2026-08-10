@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 内置皮肤:程序化像素皮卡丘。每帧是 32×32 的字符位图,字符查调色板。
+/// 内置皮肤:程序化像素皮卡丘,侦探版。每帧是 32×32 的字符位图,字符查调色板。
 ///
 /// 造型走 chibi 比例 —— 「圆鼓鼓」不是把某一块画胖,是整套比例一起换:
 /// 脑袋 19 宽 × 15 高、占身高一半且横着比竖着宽;身子 17 宽 × 5 高,宽度追到脑袋的九成
@@ -11,6 +11,9 @@ import SwiftUI
 /// 任何一个单独出现都认得出来。这也正是它比上一版白狗更适合这个尺寸的原因:
 /// 白狗的可读性靠白毛/浅灰耳/蓝玻璃之间的明暗差,而低分辨率下最先糊掉的就是明暗。
 ///
+/// 这一版照着电影版侦探皮卡丘加了三件套:灰呢帽、皱眉、端在身前的放大镜。
+/// 三样都长在 base 上,所有姿势自动带着 —— 「侦探」是它这个角色,不是某个状态。
+///
 /// 想换形象不用改这个文件 —— 往 `~/.puppy/skins/` 里丢一套 PNG 就行,见 `SkinLibrary`。
 enum Palette {
     /// 字符 → RGB。表里没有的字符('.')= 完全透明。
@@ -20,9 +23,12 @@ enum Palette {
         "O": (226, 158, 26),    // 黄的暗部:肚子下沿和脚面
         "R": (232, 66, 60),     // 脸蛋红
         "r": (255, 92, 62),     // 脸蛋放电时的亮红 —— 只提亮度不掉饱和,掉了就成粉的
-        "W": (255, 255, 255),   // 眼里的反光
-        "B": (156, 96, 32),     // 尾巴根的褐色
+        "W": (255, 255, 255),   // 眼里的反光 / 放大镜镜片的高光
+        "B": (156, 96, 32),     // 尾巴根和放大镜镜柄的褐色
         "T": (236, 118, 130),   // 舌头
+        "G": (176, 170, 164),   // 侦探帽的暖灰
+        "g": (122, 114, 108),   // 帽檐的深灰 / 帽身上的呢子斑点
+        "L": (190, 222, 238),   // 放大镜的镜片蓝
     ]
 }
 
@@ -71,7 +77,12 @@ enum Sprites {
     // 轮廓不是一格一格手抠的,是 scripts/gen-sprites.py 按「行区间 + 自动描边」算出来的。
     // 要改造型去改那个脚本再贴回来 —— 描边、五官裁剪、左右对称在那边是自动保证的。
     //
-    // 布局:y0-y10 耳朵,y9-y23 脑袋,y24-y28 身子,y29-y31 小短脚,右边 y14-y28 闪电尾。
+    // 布局:y0-y10 耳朵,y4-y11 侦探帽(盖住头顶和耳根,耳朵只露尖 —— 电影里正是
+    // 这个关系,黑耳尖整段保住),y12-y23 露出来的脸,y24-y28 身子,y29-y31 小短脚,
+    // 右边 y14-y28 闪电尾,左下 y21-y25 × x0-x4 放大镜(褐柄接到左手的弧上)。
+    //
+    // 皱眉在 y12-y13:外高内低的两小段斜杠。电影版的「严肃脸」主要就是这两道眉,
+    // 眼睛照旧用 5×5 的憨版 —— 凶一分是侦探,凶两分就成反派了。
     //
     // 五官分两层排,不并排:脑袋只有 19 格宽,眼睛(5+5)+ 中缝 + 脸蛋(4+4)横着摆不下。
     // 眼睛在上(y14-y18)、脸蛋在下且更靠外(y19-y22),纵向完全错开 —— 这也正好是
@@ -96,16 +107,16 @@ enum Sprites {
         ".KKKKK.............KKKKK........",
         ".KKKKK.............KKKKK........",
         ".KKKKKK...........KKKKKK........",
-        ".KKKKKK...........KKKKKK........",
-        "..KYYYYK.........KYYYYK.........",
-        "..KYYYYK.........KYYYYK.........",
-        "...KYYYYK.......KYYYYK..........",
-        "...KYYYYK.......KYYYYK..........",
-        "....KYYYYKKKKKKKYYYYK...........",
-        "....KYYYYYYYYYYYYYYYK...........",
-        "....KYYYYYYYYYYYYYYYK...........",
-        "...KYYYYYYYYYYYYYYYYYK..........",
-        "...KYYYYYYYYYYYYYYYYYK..........",
+        ".KKKKKK.....K.....KKKKKK........",
+        "..KYYYYK..KKKKK..KYYYYK.........",
+        "..KYYYYK.KGGGGGK.KYYYYK.........",
+        "...KYYYYKGGgGGGGKYYYYK..........",
+        "...KYYYKGGGGGGgGGKYYYK..........",
+        "....KYKGGgGGGGGGGGKYK...........",
+        "....KGGGGGGGGGGGGGGGK...........",
+        "...KgggggggggggggggggK..........",
+        "...KYKKYYYYYYYYYYYKKYK..........",
+        "...KYYYKKYYYYYYYKKYYYK..........",
         "...KYYKKKYYYYYYYKKKYYK.....KKKKK",
         "...KYKWWKKYYYYYKWWKKYK.....KYYYK",
         "...KYKWKKKYYYYYKWKKKYK...KKYYYYK",
@@ -113,11 +124,11 @@ enum Sprites {
         "...KYYKKKYYYYYYYKKKYYK.KKYYYYYYK",
         "...KYYRRYYYYKYYYYRRYYK.KYYYYYYKK",
         "....KRRRRYYYYYYYRRRRK..KYYYYYK..",
-        ".....RRRRKYYKYYKRRRR...KYYYYK...",
-        "......RRYYKKYKKYYRR....KYYYK....",
-        "........KYYYYYYYK......KYYYK....",
-        ".....KKKYYYYYYYYYKKK..KYYYK.....",
-        "....KYKYYYYYYYYYYYKYK.KYYYK.....",
+        ".KKK.RRRRKYYKYYKRRRR...KYYYYK...",
+        "KWLLK.RRYYKKYKKYYRR....KYYYK....",
+        "KLLLKBB.KYYYYYYYK......KYYYK....",
+        "KLLLKKKKYYYYYYYYYKKK..KYYYK.....",
+        ".KKKKYKYYYYYYYYYYYKYK.KYYYK.....",
         "....KYKYYYYYYYYYYYKYK.KYYKK.....",
         "....KKOKOOOOOOOOOKOOBKBKK.......",
         "......KOOOOKKKOOOOBBKKK.........",
@@ -159,8 +170,8 @@ enum Sprites {
         17: "...KKKKKKYYYYYKKKKKYYK...KYYYYYK",
         18: "...KYKKKYYYYYYYKKKYYYK.KKYYYYYYK",
         19: "...KYYRRYYYKYYYYYRRYYK.KYYYYYYKK",
-        21: ".....RRRKYYKYYKYRRRR...KYYYYK...",
-        22: "......RRYKKYKKYYYRR....KYYYK....",
+        21: ".KKK.RRRKYYKYYKYRRRR...KYYYYK...",
+        22: "KWLLK.RRYKKYKKYYYRR....KYYYK....",
     ]
     private static let lookRight: [Int: String] = [
         14: "...KYYYKKKYYYYYYYKKKYK.....KKKKK",
@@ -169,15 +180,15 @@ enum Sprites {
         17: "...KYYKKKKKYYYYYKKKKKK...KYYYYYK",
         18: "...KYYYKKKYYYYYYYKKKYK.KKYYYYYYK",
         19: "...KYYRRYYYYYKYYYRRYYK.KYYYYYYKK",
-        21: ".....RRRRYKYYKYYKRRR...KYYYYK...",
-        22: "......RRYYYKKYKKYRR....KYYYK....",
+        21: ".KKK.RRRRYKYYKYYKRRR...KYYYYK...",
+        22: "KWLLK.RRYYYKKYKKYRR....KYYYK....",
     ]
     /// 张嘴吐舌。在鼻子下面另开一块,不动鼻子 —— 挨着画会糊成一坨黑。
     private static let open: [Int: String] = [
         20: "....KRRRRYKKKKKYRRRRK..KYYYYYK..",
-        21: ".....RRRRKKKKKKKRRRR...KYYYYK...",
-        22: "......RRYKKTTTKKYRR....KYYYK....",
-        23: "........KYKKKKKYK......KYYYK....",
+        21: ".KKK.RRRRKKKKKKKRRRR...KYYYYK...",
+        22: "KWLLK.RRYKKTTTKKYRR....KYYYK....",
+        23: "KLLLKBB.KYKKKKKYK......KYYYK....",
     ]
     /// 张嘴 + 笑眼,celebrating 的主帧。
     private static let openHappy: [Int: String] = [
@@ -187,9 +198,9 @@ enum Sprites {
         17: "...KYKYYYKYYYYYKYYYKYK...KYYYYYK",
         18: "...KYYYYYYYYYYYYYYYYYK.KKYYYYYYK",
         20: "....KRRRRYKKKKKYRRRRK..KYYYYYK..",
-        21: ".....RRRRKKKKKKKRRRR...KYYYYK...",
-        22: "......RRYKKTTTKKYRR....KYYYK....",
-        23: "........KYKKKKKYK......KYYYK....",
+        21: ".KKK.RRRRKKKKKKKRRRR...KYYYYK...",
+        22: "KWLLK.RRYKKTTTKKYRR....KYYYK....",
+        23: "KLLLKBB.KYKKKKKYK......KYYYK....",
     ]
     /// 脸蛋放电:瞪眼 + 脸蛋涨大一圈并提亮。和 wide 交替播放就是「噼啪闪」,
     /// 这是皮卡丘白送的一套状态语言 —— 上一版白狗只能靠眼睛大小硬撑。
@@ -200,8 +211,8 @@ enum Sprites {
         18: "...KYKKKKKYYYYYKKKKKYK.KKYYYYYYK",
         19: "...KrKKKKKYYKYYKKKKKrK.KYYYYYYKK",
         20: "....rrrrrYYYYYYYrrrrr..KYYYYYK..",
-        21: ".....rrrrKYYKYYKrrrr...KYYYYK...",
-        22: "......rrYYKKYKKYYrr....KYYYK....",
+        21: ".KKK.rrrrKYYKYYKrrrr...KYYYYK...",
+        22: "KWLLK.rrYYKKYKKYYrr....KYYYK....",
     ]
     private static func pose(_ patches: [Int: String]...) -> [String] {
         var rows = base
@@ -233,7 +244,7 @@ enum Sprites {
 
     static let builtIn = MascotSkin(
         id: "builtin",
-        name: "皮卡丘(内置)",
+        name: "侦探皮卡丘(内置)",
         side: side,
         headRow: headRow,
         bubbleCells: bubbleCells,
