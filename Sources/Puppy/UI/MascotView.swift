@@ -4,7 +4,7 @@ import SwiftUI
 struct MascotView: View {
     @ObservedObject var store: SessionStore
 
-    /// 画布边长(点)。16 格 → 每格 6pt。
+    /// 画布边长(点)。24 格 → 每格 4pt。
     static let canvas: CGFloat = 96
     /// 窗口边长:给气泡和跳动留出余量。
     static let side: CGFloat = 112

@@ -1,7 +1,9 @@
 import SwiftUI
 
 /// 程序化像素小狗:每帧是 24×24 的字符位图,字符查调色板。
-/// 造型是戴太空头盔的白色比熊 —— 正面半身,头盔占上半张图,宇航服肩膀托在下面。
+/// 造型是戴太空头盔的白色狗狗 —— 正面半身,头盔占上半张图,宇航服肩膀托在下面。
+/// 「是只狗」全靠那对从头顶两侧往外披下来、四面描了边的垂耳。
+/// 去掉耳朵,圆脑袋 + 两只豆豆眼 + 一个鼻头,读出来就是只小熊。
 /// 以后换真 PNG 美术,只要替换这个文件 + 把 MascotView 的 Canvas 换成
 /// `Image(...).interpolation(.none)`,其余代码不用动。
 enum Palette {
@@ -12,6 +14,9 @@ enum Palette {
         "H": (176, 224, 255),   // 玻璃高光
         "P": (232, 122, 168),   // 玻璃上的粉色反光
         "W": (252, 251, 255),   // 白毛
+        // 耳朵。整个调色板都是冷色,所以这一档特意偏暖 —— 冷色系里再挑一档浅蓝灰,
+        // 耳朵会连着头盔玻璃一起糊成一片浅色,读不出是搭在脸上的另一块东西。
+        "E": (196, 186, 205),
         "S": (183, 196, 236),   // 毛的暗部,偏淡紫 —— 隔着蓝玻璃看到的白
         "K": (22, 26, 62),      // 眼睛 / 鼻头 / 嘴
         "U": (156, 178, 232),   // 宇航服
@@ -78,27 +83,42 @@ enum PixelRaster {
 enum Sprites {
     static let side = 24
 
-    // 基础姿势:正面半身。y1–y16 是头盔(圆玻璃罩 + 罩里的白毛脑袋),y17 颈环,
-    // y18–y23 宇航服的肩膀。颈环特意收窄到比头盔和肩膀都细,否则整个下半身会读成一个底座。
-    // 脸上只留两处修饰:眼睛里那格白高光、跟鼻尖脱开一行的 `∨∨` 嘴。试过加腮红,
-    // 白毛上两点红太跳,反而把干净的脸弄脏了。
+    // 基础姿势:正面半身。y0–y15 是头盔(D 描出罩沿,罩里是白毛脑袋),y16 颈环,
+    // y17–y23 宇航服的肩膀。颈环特意收窄到比头盔和肩膀都细,否则整个下半身会读成一个底座。
+    //
+    // 「圆」是两层各自都要圆,少一层都不行:
+    // 罩子 20 宽 × 16 行,行宽 10-14-16-18-18-20×6-18-18-16-14-10 上下完全对称;
+    // 脑袋 14 宽 × 12 行(y3–y14),四角同样一格一格收。
+    // 试过只把罩子撑圆、脑袋留在 10 格,脸在大罩子里缩成一小团,五官反而显得又挤又大;
+    // 更早一版是 24 宽 × 15 高的扁罩子 —— 那个是「憨」的正主。
+    //
+    // 耳朵挪到额头两侧(y4–y9),不再一路垂到脸颊 —— 狗耳本来就长在眼睛上方,
+    // 而且让开了下半张脸,眼睛才能拿到 14 格的完整宽度。眼睛因此画成 4 宽 × 3 高、
+    // 上下两行各削掉两角的圆眼,并压到下半部:大脑门 + 低眼位是最讨喜的比例。
+    // 试过 3 宽 × 2 高的扁眼,配上左上角的高光,直接读成了眯眼生气 —— 眼睛得是圆的。
+    // 耳朵**四面都用 D 描边**,内侧那条尤其不能省 —— 分离感靠的是硬边不是明暗。
+    // 试过只填浅灰、试过只描外侧、试过内侧改用一列投影,三版的耳朵都贴着罩沿
+    // 读成了头盔内衬,整只狗又变回一颗白球。
+    //
+    // 脸上只留两处修饰:圆眼里那格白反光、跟鼻尖脱开一行的 `∨∨` 嘴。
+    // 试过给鼻吻勾一圈轮廓,两道竖线在白脸上直接读成了泪痕,不如空着让耳朵去交代品种。
     private static let base: [String] = [
-        "........................",
-        "........GGGGGGGG........",
-        "......GGHHHHGGGGGG......",
-        ".....GHHGGWWWWGPPGG.....",
-        "....GHHGWWWWWWWWGPPG....",
-        "....GHWWWWWWWWWWWGPG....",
-        "...GHWWWWWWWWWWWWWWGG...",
-        "...GWWWKWKWWWWKWKWWWG...",
-        "...GWWWKKKWWWWKKKWWWG...",
-        "...GWWWKKKWWWWKKKWWWG...",
-        "...GWWWWWWWWWWWWWWWWG...",
-        "...GWWWWWWKKKKWWWWWWG...",
-        "....GWWWWWWKKWWWWWWG....",
-        "....GWWWWWWWWWWWWWWG....",
-        ".....GWWWWKWWKWWWWG.....",
-        "......GSSSSSSSSSSG......",
+        ".......DHHGGGGPPD.......",
+        ".....DHHGGGGGGGGPPD.....",
+        "....DHHGGGGGGGGGGPPD....",
+        "...DHHGGWWWWWWWWGGPPD...",
+        "...DHHDEDWWWWWWDEDPPD...",
+        "..DHGDEEDWWWWWWDEEDGPD..",
+        "..DGDEEDWWWWWWWWDEEDGD..",
+        "..DGDEEDWWWWWWWWDEEDGD..",
+        "..DGDEDWWWWWWWWWWDEDGD..",
+        "..DGGDDWKKWWWWKKWDDGGD..",
+        "..DGGWWKWKKWWKWKKWWGGD..",
+        "...DGWWWKKWWWWKKWWWGD...",
+        "...DGGWWWWWKKWWWWWGGD...",
+        "....DGGWWWKWWKWWWGGD....",
+        ".....DGGWWWWWWWWGGD.....",
+        ".......DGSSSSSSGD.......",
         "......DDDDDDDDDDDD......",
         "....DDUUUUUUUUUUUUDD....",
         "...DUUUUUUUUUUUUUUUUD...",
@@ -109,50 +129,42 @@ enum Sprites {
         "...DDDDDDDDDDDDDDDDDD...",
     ]
 
-    // 各部位的差分。用差分而不是重画整只狗,是为了让它们能自由组合。
-    //
-    // 闭眼有两套,因为「睡着」和「高兴」是两种情绪:睡觉是一道平的眼皮线,
-    // 蹦跶时是往上弯的 `^ ^`。用同一套的话完成提示看起来会像打瞌睡。
     private static let eyesClosed: [Int: String] = [
-        7: "...GWWWWWWWWWWWWWWWWG...",
-        8: "...GWWWWWWWWWWWWWWWWG...",
-        9: "...GWWWKKKWWWWKKKWWWG...",
+        9: "..DGGDDWWWWWWWWWWDDGGD..",
+        10: "..DGGWWKKKKWWKKKKWWGGD..",
+        11: "...DGWWWWWWWWWWWWWWGD...",
     ]
     private static let eyesHappy: [Int: String] = [
-        7: "...GWWWWWWWWWWWWWWWWG...",
-        8: "...GWWWWKWWWWWWKWWWWG...",
-        9: "...GWWWKWKWWWWKWKWWWG...",
+        9: "..DGGDDWWWWWWWWWWDDGGD..",
+        10: "..DGGWWWKKWWWWKKWWWGGD..",
+        11: "...DGWWKWWKWWKWWKWWGD...",
     ]
-    // 瞪眼:3 格宽撑到 4 格宽,高光跟着往外挪一格 —— 这是最扎眼的状态,要一眼看出不对劲。
+    // 瞪眼:圆眼上下两行的角补满,连反光一起吃掉 —— 这是最扎眼的状态,要一眼看出不对劲。
     private static let eyesWide: [Int: String] = [
-        7: "...GWWKWKKWWWWKKWKWWG...",
-        8: "...GWWKKKKWWWWKKKKWWG...",
-        9: "...GWWKKKKWWWWKKKKWWG...",
+        9: "..DGGDDWKKKWWKKKWDDGGD..",
+        10: "..DGGWWKKKKWWKKKKWWGGD..",
+        11: "...DGWWKKKKWWKKKKWWGD...",
     ]
     // 正面像没有尾巴可摇,「在忙」就靠五官整体左右挪一格来演 —— 像在罩子里东张西望。
+    // 耳朵不跟着动:垂耳是搭在头两侧的,头在罩子里转一点,耳朵还挂在原处。
     private static let lookLeft: [Int: String] = [
-        7: "...GWWKWKWWWWKWKWWWWG...",
-        8: "...GWWKKKWWWWKKKWWWWG...",
-        9: "...GWWKKKWWWWKKKWWWWG...",
-        11: "...GWWWWWKKKKWWWWWWWG...",
-        12: "....GWWWWWKKWWWWWWWG....",
-        13: "....GWWWWWWWWWWWWWWG....",
-        14: ".....GWWWKWWKWWWWWG.....",
+        9: "..DGGDDKKWWWWKKWWDDGGD..",
+        10: "..DGGWKWKKWWKWKKWWWGGD..",
+        11: "...DGWWKKWWWWKKWWWWGD...",
+        12: "...DGGWWWWKKWWWWWWGGD...",
+        13: "....DGGWWKWWKWWWWGGD....",
     ]
     private static let lookRight: [Int: String] = [
-        7: "...GWWWWKWKWWWWKWKWWG...",
-        8: "...GWWWWKKKWWWWKKKWWG...",
-        9: "...GWWWWKKKWWWWKKKWWG...",
-        11: "...GWWWWWWWKKKKWWWWWG...",
-        12: "....GWWWWWWWKKWWWWWG....",
-        13: "....GWWWWWWWWWWWWWWG....",
-        14: ".....GWWWWWKWWKWWWG.....",
+        9: "..DGGDDWWKKWWWWKKDDGGD..",
+        10: "..DGGWWWKWKKWWKWKKWGGD..",
+        11: "...DGWWWWKKWWWWKKWWGD...",
+        12: "...DGGWWWWWWKKWWWWGGD...",
+        13: "....DGGWWWWKWWKWWGGD....",
     ]
-    // 张嘴的同时要把鼻尖那两格擦掉,否则鼻子和嘴糊成一大坨黑,五官就没了。
+    // 张嘴在鼻吻下面另开一行,不动鼻子 —— 鼻子和嘴挨着画会糊成一大坨黑,五官就没了。
     private static let mouthOpen: [Int: String] = [
-        12: "....GWWWWWWWWWWWWWWG....",
-        13: "....GWWWWWKKKKWWWWWG....",
-        14: ".....GWWWWKTTKWWWWG.....",
+        13: "....DGGWWWKKKKWWWGGD....",
+        14: ".....DGGWWKTTKWWGGD.....",
     ]
 
     private static func pose(_ patches: [Int: String]...) -> [String] {
