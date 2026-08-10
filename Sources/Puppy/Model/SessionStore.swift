@@ -25,6 +25,10 @@ final class SessionStore: ObservableObject {
     @Published private(set) var bubbles: [BubbleItem] = []
     /// 吉祥物窗口被完全遮挡时置 false,视图据此停掉动画。
     @Published var mascotVisible: Bool = true
+    /// 当前形象。跟 session 逻辑一点关系都没有,放这儿只是因为几个视图都盯着这一个 store。
+    /// 默认给内置的,开窗口时才由 AppDelegate 换成用户选的 —— `--list` / `--watch`
+    /// 这些 headless 路径也会建 store,不该顺手去读磁盘、解一堆 PNG。
+    @Published var skin: MascotSkin = Sprites.builtIn
     /// 递增即抖一下 —— 用于 iTerm 跳转失败的无声反馈。
     @Published private(set) var shakeToken: Int = 0
 

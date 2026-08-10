@@ -12,9 +12,29 @@ if arguments.contains("--help") || arguments.contains("-h") {
       --list     打印当前 session 表后退出
       --watch    持续打印 session 变化(FSEvents 驱动)
       --focus <pid>   单独验证 pid → tty → iTerm2 跳转
-      --render <dir>  把每个状态的每一帧渲染成 PNG(开发期目视检查)
+      --render <dir> [--skin <id>]  把每个状态的每一帧渲染成 PNG(目视检查;可指定皮肤)
+      --export-skin <dir>  把内置皮肤按皮肤格式导出,拿来当自制皮肤的模板
+      --skins    列出所有能用的皮肤(读不了的会说明原因)
     """)
     exit(0)
+}
+
+if arguments.contains("--skins") {
+    MainActor.assumeIsolated { CLI.skins() }
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--export-skin") {
+    let directory = CommandLine.arguments.count > index + 1 ? CommandLine.arguments[index + 1] : "."
+    let target = URL(fileURLWithPath: directory, isDirectory: true)
+    do {
+        try MainActor.assumeIsolated { try SkinExporter.export(Sprites.builtIn, to: target) }
+        print("已导出到 \(target.path)")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("导出失败:\(error.localizedDescription)\n".utf8))
+        exit(1)
+    }
 }
 
 if arguments.contains("--list") {
@@ -34,7 +54,9 @@ if let index = CommandLine.arguments.firstIndex(of: "--focus"),
 
 if let index = CommandLine.arguments.firstIndex(of: "--render") {
     let directory = CommandLine.arguments.count > index + 1 ? CommandLine.arguments[index + 1] : "."
-    MainActor.assumeIsolated { Preview.renderAll(to: directory) }
+    let skinIndex = CommandLine.arguments.firstIndex(of: "--skin")
+    let skinID = skinIndex.flatMap { CommandLine.arguments.count > $0 + 1 ? CommandLine.arguments[$0 + 1] : nil }
+    MainActor.assumeIsolated { Preview.renderAll(to: directory, skinID: skinID) }
     exit(0)
 }
 

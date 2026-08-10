@@ -1,15 +1,22 @@
 import SwiftUI
 
-/// 悬浮小狗本体。像素风要「snap」,所以状态切换直接换帧组,不做任何淡入淡出。
+/// 悬浮吉祥物本体。像素风要「snap」,所以状态切换直接换帧组,不做任何淡入淡出。
+///
+/// 尺寸相关的量一律从 `store.skin` 现算,不写死 —— 换一套 48 格的皮肤,
+/// 起伏幅度和气泡落点会自己跟上。
 struct MascotView: View {
     @ObservedObject var store: SessionStore
 
-    /// 画布边长(点)。24 格 → 每格 4pt。
+    /// 画布边长(点)。内置皮肤 32 格 → 每格 3pt。
     static let canvas: CGFloat = 96
     /// 窗口边长:给气泡和跳动留出余量。
     static let side: CGFloat = 112
+    /// 画布在窗口里的内缩。
+    static let inset: CGFloat = (side - canvas) / 2
 
-    private var sprite: Sprite { Sprites.sprite(for: store.mascot) }
+    private var skin: MascotSkin { store.skin }
+    private var sprite: Sprite { skin.sprite(for: store.mascot) }
+    private var cell: CGFloat { Self.canvas / CGFloat(max(skin.side, 1)) }
 
     /// 身体动画已经在演 celebrating 时,气泡自己就是 ✓,不用再挂一个。
     private var showsDoneBadge: Bool { store.celebrating && store.mascot != .celebrating }
@@ -18,11 +25,11 @@ struct MascotView: View {
         // 鼠标事件全归 MascotContainerView 管,这里一律不参与命中测试。
         ZStack(alignment: .topLeading) {
             if store.mascotVisible {
-                TimelineView(.periodic(from: .now, by: 1.0 / sprite.fps)) { context in
+                TimelineView(.periodic(from: .now, by: 1.0 / max(sprite.fps, 0.1))) { context in
                     frameBody(index: frameIndex(at: context.date))
                 }
-                // 帧率随状态变,必须让 TimelineView 整个重建才能换 schedule。
-                .id(store.mascot)
+                // 帧率随状态和皮肤变,必须让 TimelineView 整个重建才能换 schedule。
+                .id("\(skin.id)/\(store.mascot.rawValue)")
             } else {
                 // 窗口被完全遮挡:画一帧静态图,彻底停掉动画时钟。
                 frameBody(index: 0)
@@ -39,37 +46,69 @@ struct MascotView: View {
     private static let shakePhases: [CGFloat] = [0, -7, 7, -5, 5, 0]
 
     private func frameBody(index: Int) -> some View {
-        let yOffset = sprite.yOffset(at: index)
-        return ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topLeading) {
             PixelCanvas(image: sprite.image(at: index))
                 .frame(width: Self.canvas, height: Self.canvas)
-                .offset(x: (Self.side - Self.canvas) / 2,
-                        y: (Self.side - Self.canvas) / 2 + yOffset * (Self.canvas / CGFloat(Sprites.side)))
+                .offset(x: Self.inset, y: Self.inset + sprite.yOffset(at: index) * cell)
 
             if let bubble = sprite.bubble {
-                // 左上角:基础姿势那一片是空的,不会盖住狗。
-                Text(bubble)
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
-                    .foregroundStyle(sprite.bubbleColor)
-                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
-                    .offset(x: 6, y: 2)
+                MascotBubbleText(bubble, color: sprite.bubbleColor, skin: skin)
             }
 
             if showsDoneBadge {
-                // 右上角:左上角归状态气泡("!"/"z"),两边分开挂才不会叠在一起。
                 // 跟着帧号点一下头,静止的小勾在余光里太容易漏。
-                Text("✓")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Sprites.doneColor)
-                    .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
-                    .offset(x: Self.side - 22, y: index.isMultiple(of: 2) ? 0 : -3)
+                MascotDoneBadge(bobbing: !index.isMultiple(of: 2), skin: skin)
             }
         }
         .allowsHitTesting(false)
     }
 
     private func frameIndex(at date: Date) -> Int {
-        Int(date.timeIntervalSinceReferenceDate * sprite.fps) % max(1, sprite.frames.count)
+        Int(date.timeIntervalSinceReferenceDate * sprite.fps) % sprite.frameCount
+    }
+}
+
+/// 状态气泡("z" / "!")。摊在皮肤指定的那段头顶空地上,文字在里头居中 ——
+/// 定宽的框才能保证换个字形也不跑偏。
+///
+/// 位置由皮肤给,不是写死的角落:皮卡丘的长耳朵把两个上角都占了,挂角上就是
+/// 灰 z 压在黑耳尖上,谁也读不出来。
+struct MascotBubbleText: View {
+    let text: String
+    let color: Color
+    let skin: MascotSkin
+
+    init(_ text: String, color: Color, skin: MascotSkin) {
+        self.text = text
+        self.color = color
+        self.skin = skin
+    }
+
+    var body: some View {
+        let cell = MascotView.canvas / CGFloat(max(skin.side, 1))
+        let cells = skin.bubbleCells
+        Text(text)
+            .font(.system(size: 22, weight: .heavy, design: .rounded))
+            .foregroundStyle(color)
+            .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+            .frame(width: CGFloat(cells.count) * cell, height: 28)
+            // 贴着窗口上沿放。画布本身还内缩了 8pt,所以这一格正好落在耳朵最开的那几行之间。
+            .offset(x: MascotView.inset + CGFloat(cells.lowerBound) * cell, y: 0)
+    }
+}
+
+/// ✓ 徽标。要和状态气泡分开挂,两个同时出现时才不打架。
+struct MascotDoneBadge: View {
+    var bobbing: Bool
+    let skin: MascotSkin
+
+    var body: some View {
+        let cell = MascotView.canvas / CGFloat(max(skin.side, 1))
+        Text("✓")
+            .font(.system(size: 18, weight: .heavy, design: .rounded))
+            .foregroundStyle(Sprites.doneColor)
+            .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
+            .offset(x: MascotView.inset + CGFloat(skin.badgeCell) * cell, y: bobbing ? -3 : 0)
     }
 }
 

@@ -10,6 +10,23 @@ enum CLI {
         printTable(store.rows, header: "session (\(store.rows.count)) — mascot: \(banner(store))")
     }
 
+    /// 列出所有能用的皮肤。皮肤画坏了(帧条尺寸对不上、少 skin.json)时,
+    /// 具体原因会由 `SkinLibrary` 打到 stderr —— 这是排查的入口。
+    static func skins() {
+        let current = SkinLibrary.saved().id
+        print("皮肤目录:\(SkinLibrary.root.path)\n")
+        for skin in SkinLibrary.all() {
+            let mark = skin.id == current ? "●" : " "
+            let states = MascotState.allCases
+                .compactMap { state in
+                    skin.sprites[state].map { "\(state.rawValue) ×\($0.frameCount)" }
+                }
+                .joined(separator: ", ")
+            print("\(mark) \(skin.name)  [\(skin.id)]  \(skin.side) 格")
+            print("    \(states.isEmpty ? "没有任何状态" : states)")
+        }
+    }
+
     static func watch() -> Never {
         setvbuf(stdout, nil, _IONBF, 0)   // 重定向到文件时也要实时可见
         let store = SessionStore()

@@ -6,18 +6,24 @@ import SwiftUI
 @MainActor
 enum Preview {
 
-    static func renderAll(to directory: String) {
+    /// `skinID` 给了就渲染那套磁盘皮肤 —— 自己画的皮肤可以先渲出来看,不用装上去重启。
+    static func renderAll(to directory: String, skinID: String? = nil) {
         _ = NSApplication.shared      // SwiftUI 离屏渲染也要求 AppKit 已初始化
         let base = URL(fileURLWithPath: directory, isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
 
+        let skin = skinID.flatMap { id in SkinLibrary.all().first { $0.id == id } } ?? Sprites.builtIn
+        if let skinID, skin.id != skinID {
+            print("没有叫 \(skinID) 的皮肤,改用内置的。`--skins` 可以看有哪些")
+        }
+
         for state in [MascotState.sleeping, .working, .celebrating, .alert] {
-            write(strip(for: state), to: base.appendingPathComponent("mascot-\(state.rawValue).png"))
+            write(strip(skin, for: state), to: base.appendingPathComponent("mascot-\(state.rawValue).png"))
         }
         // 「一个跑完了但别的还在跑 / 还在等你」—— ✓ 徽标单挂右上角的两种叠加情形。
-        write(strip(for: .working, doneBadge: true),
+        write(strip(skin, for: .working, doneBadge: true),
               to: base.appendingPathComponent("mascot-working-done.png"))
-        write(strip(for: .alert, doneBadge: true),
+        write(strip(skin, for: .alert, doneBadge: true),
               to: base.appendingPathComponent("mascot-alert-done.png"))
 
         // 气泡栈:小狗在左边和在右边两种朝向都画一遍,顺便撑到溢出看「还有 N 个」。
@@ -41,11 +47,12 @@ enum Preview {
         print("已渲染到 \(base.path)")
     }
 
-    private static func strip(for state: MascotState, doneBadge: Bool = false) -> some View {
-        let sprite = Sprites.sprite(for: state)
+    private static func strip(_ skin: MascotSkin, for state: MascotState,
+                              doneBadge: Bool = false) -> some View {
+        let sprite = skin.sprite(for: state)
         return HStack(spacing: 4) {
-            ForEach(Array(sprite.frames.indices), id: \.self) { index in
-                MascotFrameView(sprite: sprite, index: index, doneBadge: doneBadge)
+            ForEach(0..<sprite.frameCount, id: \.self) { index in
+                MascotFrameView(skin: skin, sprite: sprite, index: index, doneBadge: doneBadge)
             }
         }
         .padding(8)
@@ -106,26 +113,25 @@ enum Preview {
 
 /// 单帧渲染,含气泡和纵向偏移 —— 跟 MascotView 里跑的是同一套数据。
 private struct MascotFrameView: View {
+    let skin: MascotSkin
     let sprite: Sprite
     let index: Int
     var doneBadge: Bool = false
 
     var body: some View {
+        // 摆位一律走 MascotView 上的常量和皮肤上的锚点,连画布内缩都照抄 ——
+        // 预览要能拿来判断气泡会不会压到耳朵,它就得跟真窗口逐点一致。
         ZStack(alignment: .topLeading) {
             PixelCanvas(image: sprite.image(at: index))
                 .frame(width: MascotView.canvas, height: MascotView.canvas)
-                .offset(y: sprite.yOffset(at: index) * (MascotView.canvas / CGFloat(Sprites.side)))
+                .offset(x: MascotView.inset,
+                        y: MascotView.inset
+                            + sprite.yOffset(at: index) * (MascotView.canvas / CGFloat(skin.side)))
             if let bubble = sprite.bubble {
-                Text(bubble)
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
-                    .foregroundStyle(sprite.bubbleColor)
-                    .offset(x: -2, y: -4)
+                MascotBubbleText(bubble, color: sprite.bubbleColor, skin: skin)
             }
             if doneBadge {
-                Text("✓")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Sprites.doneColor)
-                    .offset(x: MascotView.side - 30, y: index.isMultiple(of: 2) ? -6 : -9)
+                MascotDoneBadge(bobbing: !index.isMultiple(of: 2), skin: skin)
             }
         }
         .frame(width: MascotView.side, height: MascotView.side)

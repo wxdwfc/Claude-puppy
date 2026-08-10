@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hopOrigin: NSPoint?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        store.skin = SkinLibrary.saved()
         store.start()
 
         listController = SessionListController(store: store) { [weak self] row in
@@ -133,10 +134,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .target = self
         menu.addItem(withTitle: "回到默认位置", action: #selector(resetPosition), keyEquivalent: "")
             .target = self
+
+        let skins = NSMenuItem(title: "形象", action: nil, keyEquivalent: "")
+        skins.submenu = skinMenu
+        menu.addItem(skins)
+
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出 Puppy", action: #selector(quit), keyEquivalent: "")
             .target = self
         return menu
+    }
+
+    /// 每次拉开都重扫磁盘 —— 用户往 ~/.puppy/skins 里丢一套新的,不该还要重启才认。
+    private lazy var skinMenu: NSMenu = {
+        let menu = NSMenu()
+        menu.delegate = self
+        return menu
+    }()
+
+    @objc private func chooseSkin(_ sender: NSMenuItem) {
+        guard let skin = sender.representedObject as? MascotSkin else { return }
+        store.skin = skin
+        SkinLibrary.remember(skin)
+        bubbleStack.relayout()      // 气泡对准的是脸的高度,换皮肤这个高度就变了
+    }
+
+    @objc private func revealSkinFolder() {
+        try? FileManager.default.createDirectory(at: SkinLibrary.root, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(SkinLibrary.root)
+    }
+
+    @objc private func exportBuiltInSkin() {
+        let target = SkinLibrary.root.appendingPathComponent("pikachu-template", isDirectory: true)
+        do {
+            try SkinExporter.export(Sprites.builtIn, to: target)
+            NSWorkspace.shared.activateFileViewerSelecting([target])
+        } catch {
+            store.shake()
+        }
     }
 
     @objc private func showList() { openList() }
@@ -149,4 +184,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
+}
+
+/// 形象子菜单的内容是每次拉开时现扫的,所以只能在 delegate 里填。
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === skinMenu else { return }
+        menu.removeAllItems()
+        for skin in SkinLibrary.all() {
+            let item = NSMenuItem(title: skin.name, action: #selector(chooseSkin(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = skin
+            item.state = skin.id == store.skin.id ? .on : .off
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "打开皮肤文件夹…", action: #selector(revealSkinFolder), keyEquivalent: "")
+            .target = self
+        menu.addItem(withTitle: "导出内置皮肤作模板…", action: #selector(exportBuiltInSkin), keyEquivalent: "")
+            .target = self
+    }
 }

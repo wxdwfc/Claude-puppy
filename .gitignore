@@ -3,3 +3,4 @@
 
 # 本机的 Claude Code 权限白名单,跟项目无关
 .claude/settings.local.json
+__pycache__/
