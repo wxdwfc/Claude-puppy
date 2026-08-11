@@ -4,10 +4,14 @@ import SwiftUI
 
 /// 列表面板。刻意不用 NSPopover —— 锚在无边框 nonactivating panel 上的 popover
 /// 有一堆焦点/自动消失的怪癖。自己开第二个 panel 更可控。
+///
+/// 跟气泡栈一样,窗口从头到尾 ordered in,开合只改 alpha —— 理由见 `BubbleStackController.start()`。
 @MainActor
 final class SessionListController {
     private let store: SessionStore
+    private let onSelect: (SessionRow) -> Void
     private let panel: NSPanel
+    private let hosting: NSHostingView<SessionListView>
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var cancellable: AnyCancellable?
@@ -16,11 +20,13 @@ final class SessionListController {
     /// 开合都要通知外面 —— 关闭有一半是内部的 event monitor 触发的,调用方看不见。
     var onOpenChange: ((Bool) -> Void)?
 
-    var isOpen: Bool { panel.isVisible }
+    /// 显式状态,不从 `panel.isVisible` 反推:窗口现在一直是 visible 的,
+    /// 而且「以为开着其实没开」会让气泡栈被永久压住(`isSuppressed` 再也回不去 false)。
+    private(set) var isOpen = false
 
     init(store: SessionStore, onSelect: @escaping (SessionRow) -> Void) {
         self.store = store
-        let hosting = NSHostingView(rootView: SessionListView(store: store, onSelect: onSelect))
+        self.onSelect = onSelect
         panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: SessionListView.width, height: 200),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -35,7 +41,21 @@ final class SessionListController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
+        // 关着的时候是一块透明浮空窗:别挡住底下 iTerm 的点击。
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
+        hosting = NSHostingView(rootView: Self.view(store: store, onSelect: onSelect, live: false))
+        hosting.sizingOptions = []      // 窗口尺寸只由 layout() 说了算
         panel.contentView = hosting
+        panel.orderFrontRegardless()
+    }
+
+    /// 关着的时候用**冻结**版:`SessionListView` 里那个每秒刷新的 `TimelineView` 只在开着时存在,
+    /// 常驻状态下不会有任何定时唤醒。
+    private static func view(store: SessionStore,
+                             onSelect: @escaping (SessionRow) -> Void,
+                             live: Bool) -> SessionListView {
+        SessionListView(store: store, onSelect: onSelect, frozenNow: live ? nil : Date())
     }
 
     func toggle(anchoredTo anchorFrame: NSRect) {
@@ -44,9 +64,13 @@ final class SessionListController {
 
     func open(anchoredTo anchorFrame: NSRect) {
         guard !isOpen else { return }
+        isOpen = true
         anchor = anchorFrame
+        hosting.rootView = Self.view(store: store, onSelect: onSelect, live: true)
         layout()
-        panel.orderFrontRegardless()
+        panel.ignoresMouseEvents = false
+        panel.alphaValue = 1
+        if !panel.isVisible { panel.orderFrontRegardless() }    // 兜底,正常情况下一直是 visible
         onOpenChange?(true)
 
         // 面板开着时行数会变(session 来去),高度得跟着变。
@@ -69,8 +93,11 @@ final class SessionListController {
     }
 
     func close() {
-        guard panel.isVisible else { return }
-        panel.orderOut(nil)
+        guard isOpen else { return }
+        isOpen = false
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
+        hosting.rootView = Self.view(store: store, onSelect: onSelect, live: false)
         cancellable?.cancel(); cancellable = nil
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }

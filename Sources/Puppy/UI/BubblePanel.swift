@@ -9,6 +9,8 @@ import SwiftUI
 ///
 /// 整摞用**一个** panel 而不是每条一个:条目增删的重排交给 SwiftUI,
 /// 透明区域的 hit-test 返回 nil 会自然穿透到下面的窗口。
+///
+/// **窗口从 `start()` 起就一直 ordered in,收起来靠 alpha 而不是 `orderOut`** —— 见 `hide()`。
 @MainActor
 final class BubbleStackController {
     private let store: SessionStore
@@ -47,9 +49,27 @@ final class BubbleStackController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = true
+        // 空栈时它是一块透明的浮空窗,别挡住底下 iTerm 的点击。
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
     }
 
     func start() {
+        // 一次 order in,之后**再也不 orderOut**。
+        //
+        // `.canJoinAllSpaces` 只在窗口 ordered in 的时候才会把它挂进新出现的 Space,
+        // 而且不会追认:先前「栈空了就 orderOut」,于是 iTerm2 切进原生全屏(= 新建一个 Space)
+        // 那一刻它不在场,从此那个 Space 上就永远不弹气泡 —— 小狗照常在(它一直 ordered in),
+        // 只有气泡不在,后面再怎么 orderFrontRegardless 也回不去。
+        // 「有时候在 iTerm 下不弹」就是这么来的:全屏 = 独立 Space,普通桌面 = 另一个 Space。
+        let hosting = FirstMouseHostingView(rootView: makeView(tailOnRight: true))
+        // 窗口尺寸只由 layout() 说了算。默认的 sizingOptions 会让 hosting view 反过来把
+        // 窗口按 SwiftUI 的固有尺寸缩放 —— 栈一空高度就被压成 0。
+        hosting.sizingOptions = []
+        self.hosting = hosting
+        panel.contentView = hosting
+        panel.orderFrontRegardless()
+
         cancellable = store.$bubbles
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -63,30 +83,40 @@ final class BubbleStackController {
     private func sync() {
         let count = store.bubbles.count
         guard !isSuppressed, count > 0 else {
-            if panel.isVisible { panel.orderOut(nil) }
+            hide()
             return
         }
 
         let frame = anchor()
         let tailOnRight = prefersLeftSide(of: frame)
-        let view = BubbleStackView(
+        // hosting view 只建一次(建在 start() 里)。每次重建的话 onAppear 会对**所有**条目重跑,
+        // 整摞每分钟(时长标签跳字时)集体弹一次,像抽风。
+        hosting?.rootView = makeView(tailOnRight: tailOnRight)
+
+        layout(tailOnRight: tailOnRight, anchor: frame, itemCount: count)
+        show()
+    }
+
+    private func makeView(tailOnRight: Bool) -> BubbleStackView {
+        BubbleStackView(
             store: store,
             tailOnRight: tailOnRight,
             onSelect: onSelect,
             onOverflow: onOverflow
         )
-        // hosting view 只建一次。每次重建的话 onAppear 会对**所有**条目重跑,
-        // 整摞每分钟(时长标签跳字时)集体弹一次,像抽风。
-        if let hosting {
-            hosting.rootView = view
-        } else {
-            let created = FirstMouseHostingView(rootView: view)
-            hosting = created
-            panel.contentView = created
-        }
+    }
 
-        layout(tailOnRight: tailOnRight, anchor: frame, itemCount: count)
+    private func show() {
+        panel.ignoresMouseEvents = false
+        panel.alphaValue = 1
+        // 正常情况下它一直是 ordered in 的;这一下只为了兜底(比如别的浮动窗压上来)。
         if !panel.isVisible { panel.orderFrontRegardless() }
+    }
+
+    /// 收起来 = 变透明,**不** orderOut:一 orderOut 就会掉出后来新建的 Space(见 `start()`)。
+    private func hide() {
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
     }
 
     /// 小狗默认蹲在屏幕右下角,所以优先开在左边;左边挤不下才翻到右边。
