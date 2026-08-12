@@ -122,7 +122,7 @@ private struct MascotFrameView: View {
         // 摆位一律走 MascotView 上的常量和皮肤上的锚点,连画布内缩都照抄 ——
         // 预览要能拿来判断气泡会不会压到耳朵,它就得跟真窗口逐点一致。
         ZStack(alignment: .topLeading) {
-            PixelCanvas(image: sprite.image(at: index))
+            PixelCanvas(image: sprite.image(at: index), smooth: skin.smooth)
                 .frame(width: MascotView.canvas, height: MascotView.canvas)
                 .offset(x: MascotView.inset,
                         y: MascotView.inset

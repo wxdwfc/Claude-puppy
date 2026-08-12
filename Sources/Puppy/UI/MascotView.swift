@@ -47,7 +47,7 @@ struct MascotView: View {
 
     private func frameBody(index: Int) -> some View {
         ZStack(alignment: .topLeading) {
-            PixelCanvas(image: sprite.image(at: index))
+            PixelCanvas(image: sprite.image(at: index), smooth: skin.smooth)
                 .frame(width: Self.canvas, height: Self.canvas)
                 .offset(x: Self.inset, y: Self.inset + sprite.yOffset(at: index) * cell)
 
@@ -112,15 +112,17 @@ struct MascotDoneBadge: View {
     }
 }
 
-/// 画一帧已经烤好的位图。`.interpolation(.none)` 保证放大后仍是硬边像素。
+/// 画一帧已经烤好的位图。像素皮肤用 `.none` 保证放大后仍是硬边像素;
+/// 卡通等高分辨率皮肤(skin.json 里 `"smooth": true`)换平滑插值,缩小时才不出锯齿。
 struct PixelCanvas: View {
     let image: CGImage?
+    var smooth: Bool = false
 
     var body: some View {
         if let image {
             Image(decorative: image, scale: 1)
-                .interpolation(.none)
-                .antialiased(false)
+                .interpolation(smooth ? .high : .none)
+                .antialiased(smooth)
                 .resizable()
         }
     }

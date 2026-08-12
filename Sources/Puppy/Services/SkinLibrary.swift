@@ -38,12 +38,17 @@ enum SkinLibrary {
         return skins
     }
 
-    /// 上次选的那套。皮肤目录可能已经被删了,所以必须能退回内置。
+    /// 没手动选过时默认用的皮肤:`make skin` 生成的卡通侦探皮卡丘。
+    static let defaultSkinID = "cartoon"
+
+    /// 上次选的那套;没选过就用卡通版。皮肤目录可能已经被删了(或还没 `make skin`),
+    /// 所以两条路都必须能退回内置像素版。
     static func saved() -> MascotSkin {
-        guard let id = UserDefaults.standard.string(forKey: defaultsKey), id != Sprites.builtIn.id else {
-            return Sprites.builtIn
+        let skins = all()
+        guard let id = UserDefaults.standard.string(forKey: defaultsKey) else {
+            return skins.first { $0.id == defaultSkinID } ?? Sprites.builtIn
         }
-        return all().first { $0.id == id } ?? Sprites.builtIn
+        return skins.first { $0.id == id } ?? Sprites.builtIn
     }
 
     static func remember(_ skin: MascotSkin) {
@@ -96,6 +101,7 @@ enum SkinLibrary {
             headRow: manifest.headRow ?? cell / 2,
             bubbleCells: manifest.bubbleCells.flatMap(range(from:)) ?? MascotSkin.defaultBubbleCells(side: cell),
             badgeCell: manifest.badgeCell ?? MascotSkin.defaultBadgeCell(side: cell),
+            smooth: manifest.smooth ?? false,
             sprites: sprites
         )
     }
@@ -132,6 +138,8 @@ enum SkinLibrary {
         }
         var name: String?
         var cell: Int
+        /// true = 平滑插值(卡通等高分辨率皮肤)。缺省 false,老皮肤保持硬边像素。
+        var smooth: Bool?
         var headRow: Int?
         var bubbleCells: [Int]?
         var badgeCell: Int?

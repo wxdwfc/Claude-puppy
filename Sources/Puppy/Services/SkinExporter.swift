@@ -27,6 +27,7 @@ enum SkinExporter {
         let manifest: [String: Any] = [
             "name": "\(skin.name) 的副本",
             "cell": skin.side,
+            "smooth": skin.smooth,
             "headRow": skin.headRow,
             "bubbleCells": [skin.bubbleCells.lowerBound, skin.bubbleCells.upperBound],
             "badgeCell": skin.badgeCell,

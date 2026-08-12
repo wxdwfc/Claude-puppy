@@ -43,6 +43,8 @@ struct MascotSkin: Identifiable, Equatable {
     let bubbleCells: ClosedRange<Int>
     /// ✓ 徽标落点的横向格坐标。要和气泡分开,两个同时出现时才不打架。
     let badgeCell: Int
+    /// true = 平滑插值缩放(卡通/高分辨率皮肤),false = 硬边像素(像素皮肤)。
+    var smooth: Bool = false
     let sprites: [MascotState: Sprite]
 
     static func == (lhs: MascotSkin, rhs: MascotSkin) -> Bool { lhs.id == rhs.id }
