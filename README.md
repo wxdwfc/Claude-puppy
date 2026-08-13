@@ -157,8 +157,14 @@ Claude Code CLI 自己维护一份实时注册表:`~/.claude/sessions/<pid>.json
 每个运行中的 CLI 进程一个文件,进程退出文件就没了。Puppy 只读这个,
 **不碰** `~/.claude/projects/` 下的 transcript(那些能有十几 MB)。
 
-注册表里没有「完成」这个状态。`busy → idle` 的转变就是一轮任务跑完了 ——
-这是 Puppy 唯一推导出来的状态,其余全部直读文件。
+注册表里没有「完成」这个状态,Puppy 自己推导:**status 是 `idle`、而且刚变成 `idle`
+(`statusUpdatedAt` 在 60s 内)= 一轮任务刚跑完**;刚开出来的新 session 也是 idle,
+但它的 `statusUpdatedAt` 紧贴 `startedAt`,据此摘掉。这是唯一推导出来的状态,其余全部直读文件。
+
+早先是 diff 出 `busy → idle` 这条边来判定的,漏一次事件就永远补不回来 ——
+而一轮任务收尾在 `waiting → idle`(答完权限询问那一下就结束了)非常常见,
+于是「有时候跑完了不冒气泡」。改成只看文件字段的无状态判定后,
+漏事件、app 重启、pid 复用都不再影响结论。
 
 跳转链路是 `pid → ps -o tty= → iTerm2 AppleScript 里匹配 session 的 tty`。
 tmux / ssh / 非 iTerm 终端里的 session 拿不到匹配的 tty,这时候只把 iTerm 提到前台。

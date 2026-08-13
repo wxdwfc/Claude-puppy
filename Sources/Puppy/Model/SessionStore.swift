@@ -35,14 +35,6 @@ final class SessionStore: ObservableObject {
     /// CLI `--watch` 模式用的变更回调。
     var onChange: (() -> Void)?
 
-    /// 一次「刚跑完」。带 sessionId:pid 是会被系统复用的,复用后旧记录必须作废。
-    private struct Completion {
-        let at: Date
-        let sessionId: String?
-    }
-
-    private var lastSeen: [Int32: (status: SessionStatus, sessionId: String?)] = [:]
-    private var completions: [Int32: Completion] = [:]
     private var lastGood: [Int32: (info: SessionInfo, at: Date)] = [:]
     private var staleDeadline: Date?
 
@@ -94,53 +86,25 @@ final class SessionStore: ObservableObject {
     func installPreviewRows(_ preview: [SessionRow]) {
         let now = Date()
         rows = Self.sorted(preview)
-        celebrating = preview.contains { row in
-            guard let t = row.completedAt else { return false }
-            return now.timeIntervalSince(t) < Self.celebrateWindow
-        }
+        celebrating = Self.celebrating(rows, now: now)
         mascot = MascotState.derive(rows: rows, celebrating: celebrating)
         bubbles = rows.compactMap { BubbleItem(row: $0, now: now) }
     }
 
-    // MARK: - 扫描 + diff
+    // MARK: - 扫描
 
+    /// 「谁刚跑完」不在这里 diff —— 每一行自己看自己的字段就能算出来
+    /// (`SessionInfo.completedAt(now:within:)`)。所以这里没有任何跨次刷新的状态要维护:
+    /// 少一次事件、app 中途重启、pid 被复用,都不会让某一次「跑完了」永久丢掉。
     func refresh() {
         let result = SessionRegistryReader.scan()
         let now = Date()
         let scanned = merge(result, now: now)
 
-        for s in scanned {
-            let prev = lastSeen[s.pid]
-            // pid 被复用(同 pid 换了 sessionId):上一条记录跟眼前这个 session 无关,全清。
-            if let prev, prev.sessionId != s.sessionId { completions[s.pid] = nil }
-            let continuous = prev?.sessionId == s.sessionId
-
-            switch s.status {
-            case .idle where continuous && prev?.status == .busy:
-                // 注册表里没有 "done" —— busy → idle 就是一轮任务完成。
-                completions[s.pid] = Completion(at: now, sessionId: s.sessionId)
-            case .busy, .waiting:
-                // 又开始干活 / 需要介入 —— 上一轮的完成徽标立刻作废。
-                completions[s.pid] = nil
-            default:
-                break
-            }
-        }
-
-        // 只按时间窗淘汰,**不**按进程存活淘汰:跑完顺手退出 claude 的话 pid 立刻消失,
-        // 但那一声「跑完了」照样得说完。
-        completions = completions.filter { now.timeIntervalSince($0.value.at) < Self.completedBadgeWindow }
-        lastSeen = Dictionary(
-            scanned.map { ($0.pid, (status: $0.status, sessionId: $0.sessionId)) },
-            uniquingKeysWith: { a, _ in a }
-        )
-
         let newRows = Self.sorted(scanned.map { info in
-            SessionRow(info: info, completedAt: completions[info.pid].flatMap {
-                $0.sessionId == info.sessionId ? $0.at : nil
-            })
+            SessionRow(info: info, completedAt: info.completedAt(now: now, within: Self.completedBadgeWindow))
         })
-        let newCelebrating = completions.values.contains { now.timeIntervalSince($0.at) < Self.celebrateWindow }
+        let newCelebrating = Self.celebrating(newRows, now: now)
         let newMascot = MascotState.derive(rows: newRows, celebrating: newCelebrating)
         let newBubbles = newRows.compactMap { BubbleItem(row: $0, now: now) }
 
@@ -183,10 +147,10 @@ final class SessionStore: ObservableObject {
 
         var deadlines: [TimeInterval] = []
         if let staleDeadline { deadlines.append(staleDeadline.timeIntervalSince(now)) }
-        for completion in completions.values {
-            let age = now.timeIntervalSince(completion.at)
+        for at in rows.compactMap(\.completedAt) {
+            let age = now.timeIntervalSince(at)
             if age < Self.celebrateWindow { deadlines.append(Self.celebrateWindow - age) }
-            if age < Self.completedBadgeWindow { deadlines.append(Self.completedBadgeWindow - age) }
+            deadlines.append(Self.completedBadgeWindow - age)    // completedAt 还在,就说明这一条尚未到期
         }
         // 气泡上的「已等 40m」:在下一个整分边界醒一次就够。栈空时一次都不排 ——
         // 这是这个常驻窗口唯一的周期性唤醒,且下面给了 1s leeway 让系统合并掉。
@@ -205,6 +169,14 @@ final class SessionStore: ObservableObject {
         timer.setEventHandler { [weak self] in self?.refresh() }
         timer.resume()
         expiryTimer = timer
+    }
+
+    /// 庆祝动画只看最近 `celebrateWindow` 内有没有人跑完 —— 比完成徽标的窗口短得多。
+    private static func celebrating(_ rows: [SessionRow], now: Date) -> Bool {
+        rows.contains { row in
+            guard let at = row.completedAt else { return false }
+            return now.timeIntervalSince(at) < Self.celebrateWindow
+        }
     }
 
     // MARK: - 排序

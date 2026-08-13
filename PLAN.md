@@ -31,7 +31,7 @@ Claude Code CLI 自带的**实时注册表**——每个运行中的 CLI 进程�
 ```
 
 - 观察到的 `status` 值:`busy` / `idle` / `waiting`;`waiting` 时附 `waitingFor`(见过 `"input needed"`、`"permission prompt"`)。时间戳为 epoch ms。状态变化实时写入。
-- **"完成"语义**:注册表没有 "done" 状态。`busy → idle` 转变 = 一轮任务完成;`→ waiting` = 需要用户介入。由 app diff 快照推导。
+- **"完成"语义**:注册表没有 "done" 状态。`idle` 且 `statusUpdatedAt` 在最近 60s 内 = 一轮任务刚完成(新开的 session 也是 idle,但 `statusUpdatedAt ≈ startedAt`,据此排除);`waiting` = 需要用户介入。**不 diff 快照** —— 早先靠 `busy → idle` 这条边推导,漏一次就永远补不回来,而真实收尾常常是 `waiting → idle`。
 - **不要解析 transcript jsonl**(`~/.claude/projects/.../<sessionId>.jsonl` 可达 16MB)。
 - **Schema 未文档化、随 CLI 版本可能漂移**:解码必须全字段 Optional、未知字段忽略、坏文件跳过;残留死文件用 `kill(pid_t(pid), 0) == 0 || errno == EPERM` 过滤;`kind` 过滤为 `interactive`(或 nil 宽容处理),排除 headless/子代理进程。目录不存在时显示"无 session",绝不崩溃、绝不创建该目录。
 
@@ -166,8 +166,8 @@ final class MascotPanel: NSPanel {
 - 键盘焦点在 never-key panel 里永远不可用——面板保持纯点击交互。
 
 ### 4.5 状态推导与排序
-Store 保留上一次扫描的 `[pid: status]` 快照,每次重扫 diff:
-- `busy → idle` ⇒ 记 `completedAt`;✅ 徽标显示 60s(期间再变 busy/waiting 立即清除)。这是唯一的派生状态,其余全部直读文件。
+Store 不保留跨次刷新的状态,每一行自己算:
+- `idle` 且 `now - statusUpdatedAt < 60s` 且 `statusUpdatedAt - startedAt > 2s` ⇒ `completedAt`;✅ 徽标显示 60s(期间再变 busy/waiting 自然消失,因为 status 不再是 idle)。这是唯一的派生状态,其余全部直读文件。
 - 吉祥物庆祝动画 10s,被更高优先级状态立即打断。
 - 优先级:**waiting > busy > celebrating > sleeping**。1s 内多次变化由 FSEvents latency 自然合并,不预建防抖,观察到抖动再加。
 - 排序:waiting(等最久优先)→ busy(`statusUpdatedAt` 最新优先)→ idle/done;同级按 pid 稳定排序防跳动。

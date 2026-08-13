@@ -52,6 +52,29 @@ struct SessionInfo: Identifiable, Equatable {
         return "pid \(pid)"
     }
 
+    /// 「刚跑完一轮」的判定 —— 只看这个文件自己的字段,不依赖 app 有没有目击过状态跳变。
+    ///
+    /// 注册表里没有 "done",但 `status` 加上「什么时候变成这个 status 的」已经够用:
+    /// 一轮任务收尾时 CLI 会把 status 刷成 idle 并更新 statusUpdatedAt,
+    /// 于是「是 idle,而且刚变成 idle」就是「刚跑完」。
+    ///
+    /// 先前是 diff 出 `busy → idle` 这条边来判定的,漏一次就永远补不回来。而真实世界里
+    /// 一轮任务收尾于 `waiting → idle`(答完权限询问那一下这轮就结束了)非常常见 ——
+    /// 「有时候跑完了不冒气泡」就是这么来的。无状态判定顺带把漏事件、app 重启、
+    /// pid 复用(旧 pid 的残留完成记录)这几类问题一起消掉了。
+    ///
+    /// 唯一要摘掉的是刚开出来的新 session:它一出生就是 idle,但那一刻的
+    /// statusUpdatedAt 紧贴着 startedAt(实测 33ms),用这个把它跟真的跑完区分开。
+    func completedAt(now: Date, within window: TimeInterval) -> Date? {
+        guard status == .idle, let at = statusUpdatedAt else { return nil }
+        guard now.timeIntervalSince(at) < window else { return nil }
+        if let startedAt, at.timeIntervalSince(startedAt) < Self.birthSlop { return nil }
+        return at
+    }
+
+    /// 新 session 落地到写下第一个 idle 的耗时上限。
+    private static let birthSlop: TimeInterval = 2
+
     /// cwd 缩写成 `~/a/b` 形式。
     var shortCwd: String {
         guard let cwd, !cwd.isEmpty else { return "" }
@@ -131,7 +154,7 @@ enum DisplayState: Equatable {
     }
 }
 
-/// 一行 = session + 推导出来的完成时刻。
+/// 一行 = session + 推导出来的完成时刻(见 `SessionInfo.completedAt(now:within:)`)。
 struct SessionRow: Identifiable, Equatable {
     let info: SessionInfo
     let completedAt: Date?
@@ -142,8 +165,9 @@ struct SessionRow: Identifiable, Equatable {
         switch info.status {
         case .waiting: return .waiting(info.waitingFor)
         case .busy: return .busy
+        // completedAt 只可能伴随 idle 出现,所以别的分支不用再考虑「刚完成」。
         case .idle: return completedAt != nil ? .completed : .idle
-        case .other(let s): return completedAt != nil ? .completed : .other(s)
+        case .other(let s): return .other(s)
         }
     }
 
