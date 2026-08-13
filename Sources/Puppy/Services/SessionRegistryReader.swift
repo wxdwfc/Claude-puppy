@@ -37,21 +37,38 @@ enum SessionRegistryReader {
 
         let decoder = JSONDecoder()
         var result = Result()
-        result.infos.reserveCapacity(entries.count)
+
+        // 两趟:bg session 不进列表,但被 park 的那一轮任务的真实状态攥在它们手里,
+        // 所以得先把整个目录读完、认全 jobId,才能给 interactive 那几行定状态。
+        var listed: [(pid: Int32, file: SessionFile)] = []
+        var workers: [String: SessionFile] = [:]    // jobId → 正在替谁干活
 
         for url in entries where url.pathExtension == "json" {
             guard let pidFromName = Int32(url.deletingPathExtension().lastPathComponent) else { continue }
             guard isAlive(pid: pidFromName) else { continue }   // 死 pid 的残留文件直接丢弃
 
             guard let data = try? Data(contentsOf: url),
-                  let file = try? decoder.decode(SessionFile.self, from: data),
-                  let info = file.toInfo(pidFallback: pidFromName)
+                  let file = try? decoder.decode(SessionFile.self, from: data)
             else {
                 result.unreadable.insert(pidFromName)
                 continue
             }
             // headless / 子代理进程不进列表;kind 缺失时宽容放行。
-            if let kind = info.kind, kind != "interactive" { continue }
+            if let kind = file.kind, kind != "interactive" {
+                if let jobId = file.jobId { workers[jobId] = file }
+                continue
+            }
+            listed.append((pidFromName, file))
+        }
+
+        result.infos.reserveCapacity(listed.count)
+        for (pidFromName, file) in listed {
+            guard let info = file.toInfo(pidFallback: pidFromName,
+                                         parkedWorker: file.parkedJobId.flatMap { workers[$0] })
+            else {
+                result.unreadable.insert(pidFromName)
+                continue
+            }
             // JSON 里的 pid 与文件名不一致时以 JSON 为准,但要重新验活。
             guard info.pid == pidFromName || isAlive(pid: info.pid) else { continue }
             result.infos.append(info)

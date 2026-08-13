@@ -99,11 +99,34 @@ struct SessionFile: Decodable {
     var startedAt: Double?
     var updatedAt: Double?
     var statusUpdatedAt: Double?
+    /// 这个 bg session 正在替谁干活。
+    var jobId: String?
+    /// 这一轮任务被 park 到了后台(Ctrl-B),交给 `jobId` 等于它的那个 bg session。
+    var parkedJobId: String?
+
+    /// 注册表文件只在状态跳变时才写,没有心跳。
+    var stamp: Double? { statusUpdatedAt ?? updatedAt }
 
     /// `pidFallback` 来自文件名:即使 JSON 里 pid 字段缺失也还能定位进程。
-    func toInfo(pidFallback: Int32) -> SessionInfo? {
+    ///
+    /// `parkedWorker` = `jobId` 与本行 `parkedJobId` 相同的那个 bg session,没有就传 nil。
+    /// 一轮任务被 park 到后台之后,CLI 就不再更新这个文件了,`status` 会永久冻结在 park
+    /// 那一刻的 `busy` —— 「明明跑完了还显示运行中」就是这么来的。真实状态在替它干活的
+    /// bg session 身上,所以整套状态字段都从那边镜像过来。
+    ///
+    /// 那个 bg 进程都没了,说明活已经结束,按 `idle` 算。时间戳仍旧保留 park 那一刻的
+    /// (而不是"现在"),免得凭空冒出一个假的「刚完成」。
+    func toInfo(pidFallback: Int32, parkedWorker: SessionFile?) -> SessionInfo? {
         let resolved = pid.map(Int32.init) ?? pidFallback
         guard resolved > 0 else { return nil }
+
+        let live: (status: String?, waitingFor: String?, stamp: Double?)
+        switch (parkedJobId, parkedWorker) {
+        case (nil, _):            live = (status, waitingFor, stamp)
+        case (_, let worker?):    live = (worker.status, worker.waitingFor, worker.stamp)
+        case (_, nil):            live = ("idle", nil, stamp)
+        }
+
         return SessionInfo(
             pid: resolved,
             sessionId: sessionId,
@@ -112,10 +135,10 @@ struct SessionFile: Decodable {
             kind: kind,
             entrypoint: entrypoint,
             version: version,
-            status: SessionStatus(raw: status),
-            waitingFor: waitingFor,
+            status: SessionStatus(raw: live.status),
+            waitingFor: live.waitingFor,
             startedAt: Self.date(fromEpochMillis: startedAt),
-            statusUpdatedAt: Self.date(fromEpochMillis: statusUpdatedAt ?? updatedAt)
+            statusUpdatedAt: Self.date(fromEpochMillis: live.stamp)
         )
     }
 

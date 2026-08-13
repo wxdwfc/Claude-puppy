@@ -166,6 +166,21 @@ Claude Code CLI 自己维护一份实时注册表:`~/.claude/sessions/<pid>.json
 于是「有时候跑完了不冒气泡」。改成只看文件字段的无状态判定后,
 漏事件、app 重启、pid 复用都不再影响结论。
 
+### park 到后台的那一轮
+
+Ctrl-B 把一轮任务丢到后台之后,CLI 就**不再更新这个 session 的文件了** ——
+`status` 会永久冻结在 park 那一刻的 `busy`,直到你下次在这个终端里敲字。
+只读这一个文件的话,活早干完了它还显示「运行中」。
+
+真实状态在替它干活的那个进程身上:park 的一方留下 `parkedJobId`,
+接手的 bg session 带着同名的 `jobId`。所以 Puppy 整个目录读完、认全 `jobId`,
+再把 bg 那边的 `status` / `waitingFor` / `statusUpdatedAt` 整套镜像到 owner 那一行上。
+bg session 自己**不进列表**(它没有终端,点了也无处可跳),它只是 owner 那一行的真身。
+
+镜像过来之后,parked 的活跑完照样冒「刚完成」,卡在等权限照样让小狗跳起来。
+找不到对应的 bg 记录 = 那个进程已经退出 = 活必然结束了,按空闲算;
+时间戳仍旧留在 park 那一刻,免得凭空冒出一个假的「刚完成」。
+
 跳转链路是 `pid → ps -o tty= → iTerm2 AppleScript 里匹配 session 的 tty`。
 tmux / ssh / 非 iTerm 终端里的 session 拿不到匹配的 tty,这时候只把 iTerm 提到前台。
 
