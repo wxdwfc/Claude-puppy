@@ -106,6 +106,14 @@ final class SessionListController {
         onOpenChange?(false)
     }
 
+    /// 小狗被拖走了(或走菜单里的「回到默认位置」)—— 列表锚在它身上,得跟过去。
+    /// 关着的时候不用管:下次 `open` 会拿当时的 frame 重新锚。
+    func relayout(anchoredTo anchorFrame: NSRect) {
+        guard isOpen else { return }
+        anchor = anchorFrame
+        layout()
+    }
+
     /// 贴着小狗放;顶到屏幕边缘就翻到另一侧。
     private func layout() {
         let height = SessionListView.height(rowCount: store.rows.count)

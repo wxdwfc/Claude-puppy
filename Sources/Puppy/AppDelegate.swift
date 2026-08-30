@@ -43,13 +43,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         bubbleStack.start()
 
-        // 栈是常驻的,小狗被拖走时得整摞跟过去。
+        // 栈和列表都锚在小狗身上,小狗被拖走时得一起跟过去。
+        // (「回到默认位置」那条菜单也走这儿 —— 它不关列表。)
         NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: mascotPanel,
             queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.bubbleStack.relayout() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.bubbleStack.relayout()
+                self.listController.relayout(anchoredTo: self.mascotPanel.frame)
+            }
         }
 
         // 被别的窗口完全盖住时停掉动画时钟 —— 这是省电的最后一环。
