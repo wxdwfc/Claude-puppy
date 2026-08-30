@@ -138,8 +138,8 @@ final class BubbleStackController {
 
         // panel 的 y 是底边,所以最下面那条(= 最紧急的)对着脸,整摞往上长。
         // 对着眼睛那一行,不是窗口正中 —— 正中会落到肚子上。
-        let headTop = anchorFrame.maxY - MascotView.inset
-        let headCenter = headTop - MascotView.canvas * CGFloat(store.skin.headRow) / CGFloat(max(store.skin.side, 1))
+        let headTop = anchorFrame.maxY - MascotMetrics.inset
+        let headCenter = headTop - MascotMetrics.canvas * CGFloat(store.skin.headRow) / CGFloat(max(store.skin.side, 1))
         var y = headCenter - BubbleStackView.rowHeight / 2
         // 往上顶出屏幕就整摞下移(小狗被拖到屏幕顶部时)。
         y = max(visible.minY + 4, min(y, visible.maxY - height - 4))

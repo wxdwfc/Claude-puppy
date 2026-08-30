@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.bubbleStack?.isSuppressed = open
         }
 
-        let mascot = MascotContainerView(rootView: MascotView(store: store))
+        let mascot = MascotContainerView(store: store)
         mascot.onClick = { [weak self] in self?.hop() }
         mascot.onDoubleClick = { [weak self] in self?.undoHopThenToggleList() }
         mascot.menu = buildMenu()

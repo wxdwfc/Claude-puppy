@@ -1,12 +1,11 @@
 import AppKit
-import SwiftUI
 
 /// 用 NSPanel 而不是 NSWindow,关键是 `.nonactivatingPanel`:
 /// 点小狗不会把焦点从 iTerm 抢走。
 final class MascotPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: MascotView.side, height: MascotView.side),
+            contentRect: NSRect(x: 0, y: 0, width: MascotMetrics.side, height: MascotMetrics.side),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -89,20 +88,19 @@ final class MascotPanel: NSPanel {
     }
 }
 
-/// 小狗的鼠标交互全在这里,SwiftUI 那边一点不掺和 —— NSHostingView 有自己的一套手势/命中测试,
-/// 混着用只会让「这一下到底谁收了」变得不可预测。这里就一个普通 NSView 接原始事件:
-/// 位移 < 4pt 算点击,否则算拖窗口。
+/// 小狗的鼠标交互全在这里,渲染那一层(`MascotLayerView`)一点不掺和 —— 它的 hitTest
+/// 直接返回 nil,事件全落到这个普通 NSView 上:位移 < 4pt 算点击,否则算拖窗口。
 final class MascotContainerView: NSView {
     var onClick: (() -> Void)?
     /// 双击的第一下会先当成单击发出去 —— 处理方要负责把那一下的效果收回来。
     var onDoubleClick: (() -> Void)?
 
-    init<Content: View>(rootView: Content) {
-        super.init(frame: NSRect(x: 0, y: 0, width: MascotView.side, height: MascotView.side))
-        let hosting = PassthroughHostingView(rootView: rootView)
-        hosting.frame = bounds
-        hosting.autoresizingMask = [.width, .height]
-        addSubview(hosting)
+    init(store: SessionStore) {
+        super.init(frame: NSRect(x: 0, y: 0, width: MascotMetrics.side, height: MascotMetrics.side))
+        let content = MascotLayerView(store: store)
+        content.frame = bounds
+        content.autoresizingMask = [.width, .height]
+        addSubview(content)
     }
 
     @available(*, unavailable)
@@ -143,9 +141,4 @@ final class MascotContainerView: NSView {
             onClick?()
         }
     }
-}
-
-/// 只负责画,不接鼠标:命中测试直接返回 nil,事件落到父视图上。
-private final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

@@ -111,7 +111,7 @@ enum Preview {
     }
 }
 
-/// 单帧渲染,含气泡和纵向偏移 —— 跟 MascotView 里跑的是同一套数据。
+/// 单帧渲染,含气泡和纵向偏移 —— 跟 MascotLayerView 里播的是同一套数据。
 private struct MascotFrameView: View {
     let skin: MascotSkin
     let sprite: Sprite
@@ -119,14 +119,14 @@ private struct MascotFrameView: View {
     var doneBadge: Bool = false
 
     var body: some View {
-        // 摆位一律走 MascotView 上的常量和皮肤上的锚点,连画布内缩都照抄 ——
+        // 摆位一律走 MascotMetrics 上的常量和皮肤上的锚点,连画布内缩都照抄 ——
         // 预览要能拿来判断气泡会不会压到耳朵,它就得跟真窗口逐点一致。
         ZStack(alignment: .topLeading) {
             PixelCanvas(image: sprite.image(at: index), smooth: skin.smooth)
-                .frame(width: MascotView.canvas, height: MascotView.canvas)
-                .offset(x: MascotView.inset,
-                        y: MascotView.inset
-                            + sprite.yOffset(at: index) * (MascotView.canvas / CGFloat(skin.side)))
+                .frame(width: MascotMetrics.canvas, height: MascotMetrics.canvas)
+                .offset(x: MascotMetrics.inset,
+                        y: MascotMetrics.inset
+                            + sprite.yOffset(at: index) * (MascotMetrics.canvas / CGFloat(skin.side)))
             if let bubble = sprite.bubble {
                 MascotBubbleText(bubble, color: sprite.bubbleColor, skin: skin)
             }
@@ -134,6 +134,69 @@ private struct MascotFrameView: View {
                 MascotDoneBadge(bobbing: !index.isMultiple(of: 2), skin: skin)
             }
         }
-        .frame(width: MascotView.side, height: MascotView.side)
+        .frame(width: MascotMetrics.side, height: MascotMetrics.side)
+    }
+}
+
+// MARK: - 预览专用的 SwiftUI 视图
+//
+// 真窗口里跑的是 `MascotLayerView`(CALayer + CA 动画,为了省电)。下面这几个是
+// **只给 `--render` 用**的 SwiftUI 等价物 —— 离屏渲染要的是「给我第 N 帧的静态图」,
+// 用 ImageRenderer 出图最省事,而且它一次性跑完就退出,没有功耗可言。
+// 两边的摆位都以 `MascotMetrics` 和皮肤锚点为准,所以渲出来跟真窗口逐点一致。
+
+/// 状态气泡("z" / "!")。摊在皮肤指定的那段头顶空地上,文字在里头居中 ——
+/// 定宽的框才能保证换个字形也不跑偏。
+struct MascotBubbleText: View {
+    let text: String
+    let color: Color
+    let skin: MascotSkin
+
+    init(_ text: String, color: Color, skin: MascotSkin) {
+        self.text = text
+        self.color = color
+        self.skin = skin
+    }
+
+    var body: some View {
+        let cell = MascotMetrics.cell(skin)
+        let cells = skin.bubbleCells
+        Text(text)
+            .font(.system(size: 22, weight: .heavy, design: .rounded))
+            .foregroundStyle(color)
+            .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+            .frame(width: CGFloat(cells.count) * cell, height: 28)
+            .offset(x: MascotMetrics.inset + CGFloat(cells.lowerBound) * cell, y: 0)
+    }
+}
+
+/// ✓ 徽标。要和状态气泡分开挂,两个同时出现时才不打架。
+struct MascotDoneBadge: View {
+    var bobbing: Bool
+    let skin: MascotSkin
+
+    var body: some View {
+        let cell = MascotMetrics.cell(skin)
+        Text("✓")
+            .font(.system(size: 18, weight: .heavy, design: .rounded))
+            .foregroundStyle(Sprites.doneColor)
+            .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 1)
+            .offset(x: MascotMetrics.inset + CGFloat(skin.badgeCell) * cell, y: bobbing ? -3 : 0)
+    }
+}
+
+/// 画一帧已经烤好的位图。像素皮肤用 `.none` 保证放大后仍是硬边像素;
+/// 卡通等高分辨率皮肤(skin.json 里 `"smooth": true`)换平滑插值,缩小时才不出锯齿。
+struct PixelCanvas: View {
+    let image: CGImage?
+    var smooth: Bool = false
+
+    var body: some View {
+        if let image {
+            Image(decorative: image, scale: 1)
+                .interpolation(smooth ? .high : .none)
+                .antialiased(smooth)
+                .resizable()
+        }
     }
 }
