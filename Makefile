@@ -1,4 +1,4 @@
-.PHONY: app run stop list watch build clean skin hook unhook
+.PHONY: app run stop list watch build clean skin shot hook unhook
 
 APP := .build/Puppy.app
 
@@ -29,6 +29,10 @@ watch: build
 ## 生成失败(比如没装 Pillow)不拦着启动 —— 会自动退回内置像素版
 skin:
 	@python3 scripts/gen-cartoon.py || echo "卡通皮肤生成失败(需要 Pillow),将退回内置像素版"
+
+## 重新生成 README 里那张配图(离屏渲染,不需要截屏授权)
+shot: build skin
+	@./.build/debug/Puppy --shot docs/screenshot.png --skin cartoon
 
 ## 装 Stop hook:气泡从「跑完了」变成「这一轮干了什么」
 ## 改的是 ~/.claude/settings.json(会先留一份 .bak),对所有项目生效

@@ -120,7 +120,7 @@ enum Preview {
 }
 
 /// 单帧渲染,含气泡和纵向偏移 —— 跟 MascotLayerView 里播的是同一套数据。
-private struct MascotFrameView: View {
+struct MascotFrameView: View {
     let skin: MascotSkin
     let sprite: Sprite
     let index: Int

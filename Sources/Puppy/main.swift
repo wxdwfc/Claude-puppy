@@ -19,6 +19,7 @@ if arguments.contains("--help") || arguments.contains("-h") {
       --watch    持续打印 session 变化(FSEvents 驱动)
       --focus <pid>   单独验证 pid → tty → iTerm2 跳转
       --render <dir> [--skin <id>]  把每个状态的每一帧渲染成 PNG(目视检查;可指定皮肤)
+      --shot <file> [--skin <id>]   离屏渲出 README 里那张图(不需要截屏授权)
       --export-skin <dir>  把内置皮肤按皮肤格式导出,拿来当自制皮肤的模板
       --skins    列出所有能用的皮肤(读不了的会说明原因)
       --install-hook / --uninstall-hook
@@ -68,6 +69,14 @@ if let index = CommandLine.arguments.firstIndex(of: "--focus"),
    CommandLine.arguments.count > index + 1,
    let pid = Int32(CommandLine.arguments[index + 1]) {
     MainActor.assumeIsolated { CLI.focus(pid: pid) }
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--shot") {
+    let path = CommandLine.arguments.count > index + 1 ? CommandLine.arguments[index + 1] : "screenshot.png"
+    let skinIndex = CommandLine.arguments.firstIndex(of: "--skin")
+    let skinID = skinIndex.flatMap { CommandLine.arguments.count > $0 + 1 ? CommandLine.arguments[$0 + 1] : nil }
+    MainActor.assumeIsolated { Shot.render(to: path, skinID: skinID) }
+    exit(0)
 }
 
 if let index = CommandLine.arguments.firstIndex(of: "--render") {

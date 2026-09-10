@@ -5,6 +5,8 @@
 
 没有系统通知,没有声音 —— 所有提醒都靠它自己的表情和动作。
 
+![桌面右下角:小狗、身边那摞待办气泡,和双击展开的 session 列表](docs/screenshot.png)
+
 ## 用起来
 
 ```bash
@@ -143,7 +145,12 @@ make hook / make unhook      # 装/卸 Stop hook(见下)
 ./.build/debug/Puppy --focus <pid>              # 单独验证 pid → tty → iTerm2 跳转
 ./.build/debug/Puppy --render <dir> [--skin <id>]  # 把每个状态的每一帧渲染成 PNG
 ./.build/debug/Puppy --skins                    # 列出可用皮肤
+make shot                    # 重新生成上面那张 README 配图
 ```
+
+上面那张图是 `--shot` **离屏渲**出来的,不是截屏:摆进画布的就是真的 `BubbleStackView` /
+`SessionListView` / 皮肤的某一帧,坐标照抄两个 panel 的 `layout()`,所以它跟真窗口逐点一致 ——
+既不用 Screen Recording 授权,也不会把桌面上碰巧开着的东西拍进去,换台机器还能重跑。
 
 内置皮卡丘的位图是 `scripts/gen-sprites.py` 按「行区间 + 自动描边」算出来的,
 不是一格格手抠的 —— 改造型去改那个脚本,描边、五官裁剪、左右对称在那边是自动保证的。
