@@ -1,151 +1,181 @@
 # Puppy
 
-一只悬浮在桌面上的小宠物,实时反映 iTerm2 里每个 Claude Code session 的状态。
-形象是一套可替换的贴图 —— 内置的那只只是默认值,换成你自己的猫、你的头像、一个纯色方块都行。
+A small pet that sits on your desktop and shows you what every Claude Code session in
+iTerm2 is doing right now. What it looks like is a swappable skin, and the one in the repo
+is only a default. Put in your own cat, your avatar, or a plain colored square.
 
 [![platform](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://www.apple.com/macos/)
 [![swift](https://img.shields.io/badge/Swift-6.0-orange)](https://swift.org)
 [![terminal](https://img.shields.io/badge/terminal-iTerm2-blue)](https://iterm2.com)
 
-![桌面右下角:小狗、身边那摞待办气泡,和双击展开的 session 列表](docs/screenshot.png)
+[中文](docs/README.zh-CN.md)
 
-## 亮点
+![Bottom right of the screen: the pet, the stack of pending bubbles beside it, and the session list opened by double-clicking](docs/screenshot.png)
 
-- **一眼看出哪个 session 在等你。** 它睡觉 = 全空闲,左顾右盼 = 有活在跑,
-  炸毛乱跳 = 有人卡在权限确认上等你回话。
-- **要你动手的事摞成一叠,不会互相顶掉。** 三个 session 同时等你就是三条,
-  不轮播、不排队;你在那个终端敲了回车,那一条自己消失。
-- **点一下就跳过去。** 气泡或列表里的任意一行 → 对应的 iTerm2 窗口 / 标签页。
-- **不发系统通知,不出声。**
-- **全空闲时 0% CPU。** 全程 FSEvents 事件驱动,一处轮询都没有。
-- **一个形象就是四张 PNG 加一份 json。** 丢进 `~/.puppy/skins/`,右键菜单里直接选,
-  不用重启也不用重编译。
+> The app's own interface is Chinese only at the moment. The mockups below show the real
+> strings, glossed in English. Adding localization is a welcome PR.
 
-## 这是个什么东西
+## Highlights
 
-并行开着五六个 Claude Code 的时候,真正的问题不是「跑得慢」,而是**某一个卡在权限确认上
-等了你二十分钟而你不知道**。Puppy 把这件事挪到桌面角落:一个不占 Dock、不发通知的小图标,
-它的动作就是全局状态,身边那摞气泡就是待办清单,点一下直接把你送回那个终端。
+- **One look tells you which session is waiting on you.** Asleep means everything is idle,
+  glancing around means work is running, bristling and hopping means someone hit a
+  permission prompt.
+- **Things that need your hands stack up and never push each other out.** Three sessions
+  waiting is three cards. They don't rotate or queue behind one another. Answer one in its
+  terminal and that card goes away by itself.
+- **Click to jump.** Any bubble, or any row of the list, takes you to the matching iTerm2
+  window or tab.
+- **It never posts a system notification or makes a sound.**
+- **0% CPU while everything is idle.** FSEvents throughout, with no polling anywhere.
+- **A skin is four PNGs and one json file.** Drop it into `~/.puppy/skins/` and pick it
+  from the right-click menu without restarting or rebuilding anything.
 
-它长什么样是你的事。app 只认四个状态(睡觉 / 在跑 / 等你 / 刚完成),每个状态配一条
-帧动画;至于那四条动画画的是什么,由当前选中的皮肤决定,仓库里带的只是一套能直接跑的默认值。
+## What this is
 
-它读的是 Claude Code CLI 自己维护的实时注册表(`~/.claude/sessions/<pid>.json`,一个运行中的
-进程一个文件),**不碰** `~/.claude/projects/` 下动辄十几 MB 的 transcript。装上可选的
-Stop hook 之后,「跑完了」还会换成那一轮真正的结论。原理和取舍写在
-[docs/DESIGN.md](docs/DESIGN.md)。
+With five or six Claude Code sessions running, the one that costs you time is the one that
+hit a permission prompt twenty minutes ago while you were looking somewhere else. Puppy
+moves that into a corner of your screen: a small icon with no Dock presence and no
+notifications. Its animation is the global state, the stack of bubbles beside it is your
+to-do list, and clicking one puts you back in that terminal.
 
-**要求:** macOS 14+、Swift 6 工具链(Xcode 或 Swift toolchain)、iTerm2。
-跳转靠 iTerm2 的 AppleScript 接口,别的终端拿不到窗口,只会把 iTerm 提到前台。
+What it looks like is up to you. The app knows four states (asleep, running, waiting on
+you, just finished) and plays one frame animation per state. Whatever those four animations
+actually draw is decided by the selected skin, and the one in the repo is a default that
+happens to run out of the box.
 
-## 用起来
+It reads the live registry the Claude Code CLI keeps for itself: `~/.claude/sessions/<pid>.json`,
+one file per running process. It never opens the transcripts under `~/.claude/projects/`,
+which run to tens of megabytes. Install the optional Stop hook and "done" becomes what the
+turn actually concluded. The reasoning behind all of this is in [docs/DESIGN.md](docs/DESIGN.md).
 
-### 支使它
+**Requirements:** macOS 14+, a Swift 6 toolchain (Xcode or a standalone one), and iTerm2.
+Focus switching goes through iTerm2's AppleScript interface, so a session living in some
+other terminal has no window to raise and Puppy only brings iTerm to the front.
 
-| 操作 | 结果 |
+## Using it
+
+### Bossing it around
+
+| Gesture | Result |
 |---|---|
-| **单击** | 换窝:蹲到当前屏幕的下一个角(右下 → 左下 → 左上 → 右上 → …) |
-| **双击** | 展开 / 收起 session 列表 |
-| **拖动** | 放到任意位置 |
-| **右键** | 展开列表 / 刷新 / 回到默认位置 / 换形象 / 退出 |
+| **Click** | Move house: hop to the next corner of the current screen (bottom right, bottom left, top left, top right, around again) |
+| **Double-click** | Open or close the session list |
+| **Drag** | Put it wherever you want |
+| **Right-click** | Open list / refresh / reset position / change skin / quit |
 
-它没有 Dock 图标,**右键它**是唯一的退出入口。
+It has no Dock icon, and right-clicking it is the only way out.
 
-挡住东西的时候不用瞄准拖 —— 点一下就扒拉到隔壁角去了,位置都会记住。被拖到半空中时,
-第一下单击是先归位到最近的角,再往下轮转。双击的第一下会先跳一格,列表打开前它自己会跑回来。
+When it covers something you need, you don't have to aim a drag at it. One click shoves it
+to the next corner over, and every position is remembered. If you left it stranded in the
+middle of the screen, the first click snaps it to the nearest corner before the rotation
+picks up again. A double-click makes it hop once too, then it runs back before the list opens.
 
-### 它在说什么
+### What it's telling you
 
-| 样子 | 意思 |
+| Behavior | Meaning |
 |---|---|
-| 闭眼呼吸 + 飘 `z` | 全部空闲,或者一个 session 都没有 |
-| 左顾右盼 + 轻微起伏 | 有 session 在跑 |
-| 炸毛 + 上下跳 + 红色 `!` | **有 session 在等你**(输入 / 权限确认) |
-| 咧嘴笑 + 蹦跶 + 绿色 `✓` | 刚有一轮任务跑完,而且别的都闲着(10 秒) |
-| 右上角绿色 `✓` 徽标 | 刚有一轮任务跑完,但还有别的 session 在跑 / 在等你(10 秒) |
+| Eyes shut, breathing, floating `z` | Everything idle, or no sessions at all |
+| Glancing around, small bob | Something is running |
+| Bristling, hopping, red `!` | **A session is waiting on you** (input or a permission prompt) |
+| Grinning, bouncing, green `✓` | A turn just finished and nothing else is busy (10 seconds) |
+| Green `✓` badge, top right | A turn just finished, but other sessions are still running or waiting (10 seconds) |
 
-身体动画的优先级是 `等待 > 运行 > 刚完成 > 睡觉`,所以只要有任何一个 session 卡在等你,
-它一定在跳。「刚完成」不参与这个竞争 —— 它是挂在右上角的**独立徽标**,并行开好几个 session 时
-不会被还在跑的那些吃掉。徽标和红色 `!` 落在皮肤各自指定的位置上,两个可以同时出现、不打架。
-上面那栏动作写的是默认形象,换套皮肤动作就变了,状态本身不变。
+Body animations rank `waiting > running > just finished > asleep`, so as long as any session
+is stuck on you, it is hopping. "Just finished" stays out of that contest. It hangs in the
+top right as its own badge, which is what keeps it from being swallowed by the sessions
+still running when you have several going at once. The badge and the red `!` land wherever
+the skin puts them, and both can appear together. The left column above describes the
+default skin; change it and the motions change with it, while the states do not.
 
-### 身边那摞气泡
+### The stack beside it
 
-光靠头顶 6pt 的符号太容易漏,所以需要你动手的事会摞在它旁边,一件一条:
+A 6pt glyph over its head is far too easy to miss, so anything that needs your hands piles
+up next to it, one card each:
 
 ```
 ╭──────────────────────╮
-│ ✋ agentic-research   3m │   ← 等最久的贴着它
-│ 在等你 · permission prompt │
+│ ✋ agentic-research   3m │   ← longest wait sits closest to it
+│ 在等你 · permission prompt │     ("waiting on you")
 ╰──────────────────────╯◀ ⚡
 ```
 
-- **等最久的贴着它**,往上依次递减。处理完最紧急的,下一个自动滑到嘴边。
-- 最多 5 条,再多折成一条 `还有 N 个 ›`,点它开完整列表。
-- **点一下** = 跳到那个 session 的 iTerm 窗口。注意跳过去**不会**让它消失,
-  你没真回答它就还在 —— 没有「已读」按钮,所以不可能出现「关掉了但其实忘了处理」。
-- 「跑完了」那种没有后续动作,60 秒后自消。
-- 默认开在左边,左边挤不下就翻到右边;点开列表面板时整摞让位。
+- **The longest wait sits closest to it**, with shorter ones above. Clear the most urgent one and
+  the next slides down to its mouth.
+- Five cards at most. Anything beyond that folds into a single `还有 N 个 ›` ("N more") that
+  opens the full list.
+- **Clicking a card** jumps to that session's iTerm window, the same as clicking a row of the
+  list. Jumping there does **not** clear the card. If you haven't actually answered
+  it, it stays. There is no "mark as read" button, so you can't dismiss something and then
+  forget you never dealt with it.
+- A "done" card has nothing left to act on, so it clears itself after 60 seconds.
+- The stack opens on its left, or flips to the right when the left is too tight. It steps
+  aside while the list panel is open.
 
-这摞东西是当前状态的直接映射而不是一串会过期的通知,为什么这么设计见
-[docs/DESIGN.md](docs/DESIGN.md#状态是从哪来的)。
+The stack is a direct reading of current state rather than a feed of notifications that age
+out. [docs/DESIGN.md](docs/DESIGN.md#状态是从哪来的) explains why that distinction matters.
 
-### 换成你自己的形象
+### Using your own skin
 
-往 `~/.puppy/skins/` 里丢一个目录,**右键 → 形象**里就会列出来(每次拉开菜单都重扫,
-不用重启)。一个形象 = 四张帧条 PNG(一个状态一张)+ 一份 `skin.json`:
-
-```bash
-./.build/debug/Puppy --export-skin ~/.puppy/skins/my-cat   # 导出默认那套作模板,照着改最省事
-./.build/debug/Puppy --render /tmp/px --skin my-cat        # 装上去之前先渲出来看
-```
-
-`skin.json` 里除了帧率,还要告诉 app 气泡尾巴该指向哪一行、`!` 和 `✓` 徽标各落在哪 ——
-这样贴图换成什么比例都对得上。字段说明和逐帧起伏的写法见 [docs/SKINS.md](docs/SKINS.md)。
-
-仓库自带一套矢量生成的默认贴图(`make skin`),没手动选过形象时就用它。
-
-### 命令行(调试用)
+Drop a directory into `~/.puppy/skins/` and it appears under **right-click → skin** (the
+menu rescans every time you open it, so nothing needs restarting). A skin is four filmstrip
+PNGs, one per state, plus a `skin.json`:
 
 ```bash
-make list                    # 打印当前 session 表 + 气泡栈
-make watch                   # 持续打印状态变化(FSEvents 驱动)
-make shot                    # 重新生成上面那张 README 配图(离屏渲,不需要截屏授权)
-./.build/debug/Puppy --focus <pid>                 # 单独验证 pid → tty → iTerm2 跳转
-./.build/debug/Puppy --render <dir> [--skin <id>]  # 把每个状态的每一帧渲染成 PNG
-./.build/debug/Puppy --skins                       # 列出可用皮肤
+./.build/debug/Puppy --export-skin ~/.puppy/skins/my-cat   # export the default as a template
+./.build/debug/Puppy --render /tmp/px --skin my-cat        # render it before installing it
 ```
 
-## 装上它
+Besides frame rates, `skin.json` tells the app which row the bubble tail should point at and
+where the `!` and `✓` badges go, which is how artwork of any proportion still lines up. The
+field reference and the way per-frame bobbing is written are in [docs/SKINS.md](docs/SKINS.md).
+
+The repo ships a vector-generated default (`make skin`), used until you pick something else.
+
+### Command line (for debugging)
+
+```bash
+make list                    # print the current session table and bubble stack
+make watch                   # keep printing state changes (driven by FSEvents)
+make shot                    # regenerate the screenshot above (offscreen, no capture permission)
+./.build/debug/Puppy --focus <pid>                 # test pid → tty → iTerm2 focus on its own
+./.build/debug/Puppy --render <dir> [--skin <id>]  # render every frame of every state to PNG
+./.build/debug/Puppy --skins                       # list available skins
+```
+
+## Installing it
 
 ```bash
 git clone https://github.com/wxdwfc/Claude-puppy.git
 cd Claude-puppy
-make run      # 构建 .app、签名、启动(会先杀掉已在跑的实例)
+make run      # build the .app, sign it, launch it (kills any running instance first)
 ```
 
-`make stop` 退出。默认贴图靠 Pillow 生成,没装也照样起得来,退回编译进二进制的像素版。
+`make stop` quits. Generating the default artwork needs Pillow; without it Puppy still comes
+up and falls back to the pixel skin compiled into the binary.
 
-### 建一个签名证书(强烈建议)
+### Make a signing certificate (worth doing)
 
-默认退回 ad-hoc 签名,能跑,但**每次重新编译签名指纹都会变**,导致「Puppy 想控制 iTerm2」
-的授权反复失效 —— 每次点 session 行都要重新授权一次。建一个自签证书就能一劳永逸:
+Without one, the build falls back to ad-hoc signing. That runs, but **the signature fingerprint changes
+on every rebuild**, which keeps invalidating the "Puppy wants to control iTerm2" grant, and
+you re-authorize every single time you click a session row. One self-signed certificate
+settles it for good:
 
-1. 打开「钥匙串访问」→ 菜单「证书助理」→「创建证书…」
-2. 名称填 `puppy-dev`,身份类型「自签名根证书」,证书类型「代码签名」
-3. `make run` 重新构建 —— 脚本会自动认出它并用它签名
+1. Open Keychain Access → Certificate Assistant → Create a Certificate…
+2. Name it `puppy-dev`, identity type "Self Signed Root", certificate type "Code Signing"
+3. Run `make run` again. The build script picks it up and signs with it.
 
-第一次点某个 session 行时,系统会弹一次 Automation 授权,同意即可。
-如果误点了拒绝,Puppy 会把你送到「系统设置 → 隐私与安全性 → 自动化」。
+The first time you click a session row, macOS asks for Automation permission once. Deny it by
+accident and Puppy will walk you to System Settings → Privacy & Security → Automation.
 
-### 可选:让气泡说人话
+### Optional: let the bubbles say something useful
 
 ```bash
-make hook       # 装 Stop hook,写进 ~/.claude/settings.json(先留一份 .bak)
-make unhook     # 卸干净,不留渣
+make hook       # install the Stop hook into ~/.claude/settings.json (a .bak is kept first)
+make unhook     # remove it cleanly
 ```
 
-装之前气泡只说「跑完了」;装之后它说那一轮的结论:
+Without it, the bubble only says 跑完了 ("done"). With it, the bubble says what that turn
+concluded:
 
 ```
 ╭─────────────────────────────╮
@@ -154,24 +184,29 @@ make unhook     # 卸干净,不留渣
 ╰─────────────────────────────╯◀ ⚡
 ```
 
-对所有项目生效,**新开的 session 才算数**,已经开着的要重启。这条通道被关在纯装饰层里:
-摘要没配上就退回「跑完了」,状态判定永远不受影响 ——
-[为什么不干脆全用 hook](docs/DESIGN.md#stop-hook-干的那件事)。
+It applies to every project, and **only sessions started afterward count**, so restart
+anything already open. The channel is fenced inside the decoration layer: when a summary
+can't be matched up, the bubble falls back to "done" and state detection is never touched.
+[Why the hook isn't used for everything](docs/DESIGN.md#stop-hook-干的那件事).
 
-## 再往下读
+## Further reading
 
-- [docs/DESIGN.md](docs/DESIGN.md) —— 状态怎么推导出来的、Stop hook 的取舍、
-  park 到后台那一轮怎么救回来、省电、已知的坑
-- [docs/SKINS.md](docs/SKINS.md) —— 自己画一只
-- [PLAN.md](PLAN.md) —— 最初的设计草稿
+- [docs/DESIGN.md](docs/DESIGN.md): where the states come from, the Stop hook trade-offs,
+  how a parked turn gets rescued, power use, known rough edges
+- [docs/SKINS.md](docs/SKINS.md): drawing your own
+- [PLAN.md](PLAN.md): the original design sketch
 
-## 参与
+All three are in Chinese.
 
-Issue 和 PR 都欢迎,尤其是这几类:
+## Contributing
 
-- **注册表 schema 漂了。** `~/.claude/sessions/` 里出现了没见过的字段或 status,
-  贴一份(记得抹掉路径里的敏感信息)。
-- **你画的皮肤。**
-- **别的终端。** 现在只有 iTerm2 能精确跳转,别的终端拿不到 tty 匹配。
+Issues and PRs are welcome, especially these:
 
-这是个人玩具项目,按周末的节奏合并,别指望 SLA。
+- **The registry schema drifted.** If `~/.claude/sessions/` sprouts a field or a status I
+  haven't seen, paste one in (scrub anything sensitive out of the paths first).
+- **Sprites you drew.**
+- **Other terminals.** Only iTerm2 can be targeted precisely right now, because everything
+  else fails to give back a tty that matches.
+- **English strings in the app.** None of the UI is localized yet.
+
+This is a personal toy project. Merges happen at weekend speed, so don't expect an SLA.
