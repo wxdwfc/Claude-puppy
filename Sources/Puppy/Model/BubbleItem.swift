@@ -27,6 +27,8 @@ struct BubbleItem: Identifiable, Equatable {
     /// 「40m」。分钟级 —— 秒级要一个 1Hz 时钟,而这是个 24h 挂着的常驻窗口。
     /// 不满一分钟为 nil:刚冒出来就顶个「0m」既没信息量又多一次重绘。
     let ageLabel: String?
+    /// Stop hook 递过来的一句话。没装 hook / 没赶上,就是 nil。
+    let note: String?
 
     var id: Int32 { pid }
 
@@ -40,12 +42,15 @@ struct BubbleItem: Identifiable, Equatable {
         pid = row.info.pid
         name = row.info.displayName
         ageLabel = row.stateDuration(now: now).flatMap(Self.age(_:))
+        note = row.note?.display
     }
 
+    /// 「跑完了」是个没信息量的句子 —— 装了 Stop hook 就换成它自己那轮的结论。
+    /// 注册表里没有这句话,只有 hook 递得过来(见 `SidecarStore`)。
     var text: String {
         switch kind {
         case .waiting(let reason): return reason.map { "在等你 · \($0)" } ?? "在等你输入"
-        case .done: return "跑完了"
+        case .done: return note ?? "跑完了"
         }
     }
 

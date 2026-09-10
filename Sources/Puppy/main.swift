@@ -4,6 +4,12 @@ import AppKit
 // 而且 headless 模式需要在 NSApplication 起来之前就分流。
 let arguments = Set(CommandLine.arguments.dropFirst())
 
+// 最先分流:这条是被 Claude Code 每一轮收尾时拉起来的,越短越好,
+// 而且绝不能碰 stdout —— 见 StopHook.receive()。
+if arguments.contains("--hook") {
+    StopHook.receive()
+}
+
 if arguments.contains("--help") || arguments.contains("-h") {
     print("""
     puppy — Claude Code 桌面宠物
@@ -15,8 +21,20 @@ if arguments.contains("--help") || arguments.contains("-h") {
       --render <dir> [--skin <id>]  把每个状态的每一帧渲染成 PNG(目视检查;可指定皮肤)
       --export-skin <dir>  把内置皮肤按皮肤格式导出,拿来当自制皮肤的模板
       --skins    列出所有能用的皮肤(读不了的会说明原因)
+      --install-hook / --uninstall-hook
+                 往 ~/.claude/settings.json 里装/卸 Stop hook。
+                 装上之后气泡能显示「这一轮干了什么」,不装也不影响其它功能
+      --hook     hook 自己调的,不用手敲
     """)
     exit(0)
+}
+
+if arguments.contains("--install-hook") {
+    exit(StopHook.install())
+}
+
+if arguments.contains("--uninstall-hook") {
+    exit(StopHook.uninstall())
 }
 
 if arguments.contains("--skins") {

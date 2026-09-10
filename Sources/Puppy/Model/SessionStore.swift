@@ -14,6 +14,10 @@ final class SessionStore: ObservableObject {
     static let fallbackInterval: TimeInterval = 30
     /// 文件被截断重写的瞬间读不出来时,沿用上一次好数据的时长 —— 防止行闪烁。
     static let staleGrace: TimeInterval = 3
+    /// Stop hook 的时间戳与注册表推出来的完成时刻能差多远还算「同一轮」。
+    /// 两者本该只差毫秒(hook 先跑,CLI 随后刷 idle),给 30s 是为了容忍
+    /// async hook 排队;超出这个范围宁可不配文案,也不能把上一轮的话安在这一轮头上。
+    static let noteSlop: TimeInterval = 30
 
     @Published private(set) var rows: [SessionRow] = []
     @Published private(set) var mascot: MascotState = .sleeping
@@ -39,6 +43,9 @@ final class SessionStore: ObservableObject {
     private var staleDeadline: Date?
 
     private var watcher: DirectoryWatcher?
+    /// 第二个监听:Stop hook 写的 sidecar 目录。跟上面那个完全独立 ——
+    /// 它挂了只是气泡少一句话,不影响状态。
+    private var eventsWatcher: DirectoryWatcher?
     private var fallbackTimer: DispatchSourceTimer?
     private var expiryTimer: DispatchSourceTimer?
     private var started = false
@@ -58,6 +65,12 @@ final class SessionStore: ObservableObject {
         // 不创建目录,交给兜底定时器,等目录出现后的下一次 refresh 里重试。
         watcher?.start()
 
+        eventsWatcher = DirectoryWatcher(path: SidecarStore.directory.path) { [weak self] in
+            Task { @MainActor in self?.refresh() }
+        }
+        // 没装 hook 时这个目录压根不存在,start() 失败是正常的,不用管。
+        eventsWatcher?.start()
+
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(
             deadline: .now() + Self.fallbackInterval,
@@ -67,6 +80,7 @@ final class SessionStore: ObservableObject {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             if self.watcher?.start() == false { /* 目录仍不存在,继续等 */ }
+            _ = self.eventsWatcher?.start()
             self.refresh()
         }
         timer.resume()
@@ -75,6 +89,7 @@ final class SessionStore: ObservableObject {
 
     func stop() {
         watcher?.stop(); watcher = nil
+        eventsWatcher?.stop(); eventsWatcher = nil
         fallbackTimer?.cancel(); fallbackTimer = nil
         expiryTimer?.cancel(); expiryTimer = nil
         started = false
@@ -100,9 +115,13 @@ final class SessionStore: ObservableObject {
         let result = SessionRegistryReader.scan()
         let now = Date()
         let scanned = merge(result, now: now)
+        let notes = SidecarStore.scan(now: now)
 
         let newRows = Self.sorted(scanned.map { info in
-            SessionRow(info: info, completedAt: info.completedAt(now: now, within: Self.completedBadgeWindow))
+            let completedAt = info.completedAt(now: now, within: Self.completedBadgeWindow)
+            return SessionRow(info: info,
+                              completedAt: completedAt,
+                              note: Self.note(for: info, completedAt: completedAt, in: notes))
         })
         let newCelebrating = Self.celebrating(newRows, now: now)
         let newMascot = MascotState.derive(rows: newRows, celebrating: newCelebrating)
@@ -120,6 +139,18 @@ final class SessionStore: ObservableObject {
 
         scheduleNextExpiry(now: now)
         if changed { onChange?() }
+    }
+
+    /// 把 hook 递过来的那句话配到对应的一行上。
+    ///
+    /// 只在这一行**确实刚跑完**的时候配,而且要求时间戳对得上:sidecar 是一个 session
+    /// 一个文件、覆盖写的,不做这个校验的话,上一轮的结论会挂在这一轮的气泡上。
+    /// 配不上就返回 nil —— 气泡退回「跑完了」,永远不会显示错的东西。
+    private static func note(for info: SessionInfo, completedAt: Date?,
+                             in notes: [String: SidecarNote]) -> SidecarNote? {
+        guard let completedAt, let sessionId = info.sessionId, let note = notes[sessionId] else { return nil }
+        guard abs(note.at.timeIntervalSince(completedAt)) <= Self.noteSlop else { return nil }
+        return note
     }
 
     /// 把「这次读到的」和「上次读到的好数据」拼起来:

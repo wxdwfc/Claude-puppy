@@ -125,6 +125,9 @@ private struct SessionRowView: View {
         .frame(height: SessionListView.rowHeight)
         .background(hovering ? Color.primary.opacity(0.08) : .clear)
         .onHover { hovering = $0 }
+        // 列表这一行本来就挤(状态列封在 140pt),塞不下 hook 递来的那句话,
+        // 挂成 tooltip 不占版面。气泡那边是直接显示的。
+        .help(row.note?.display ?? row.info.shortCwd)
     }
 
     private var tint: Color {

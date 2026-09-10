@@ -78,12 +78,15 @@ enum Preview {
         return [
             row(101, "puppy", .waiting, "permission prompt", ago: 184, now: now),
             row(102, "cse-csp-lecture", .busy, ago: 42, now: now),
-            row(103, "agentic-research", .idle, ago: 8, now: now, completed: true),
+            row(103, "agentic-research", .idle, ago: 8, now: now, completed: true,
+                note: "补上了缺的重试逻辑,测试全过"),
             row(104, "dotfiles", .idle, ago: 5400, now: now),
         ]
     }
 
-    /// 专门喂给气泡栈:7 个待办,超过 `maxVisible` 才画得出「还有 N 个」那一条。
+    /// 专门喂给气泡栈:6 个待办,超过 `maxVisible` 才画得出「还有 N 个」那一条。
+    /// 「在等你」不要排满 5 条 —— 排满了「刚跑完」永远被挤进折叠里,
+    /// 带 hook 摘要的那条就渲不出来,而它正是最需要目视确认版面的一条。
     private static func sampleStackRows() -> [SessionRow] {
         let now = Date()
         return [
@@ -91,23 +94,28 @@ enum Preview {
             row(102, "agentic-research", .waiting, "plan approval", ago: 184, now: now),
             row(103, "cse-csp-lecture", .waiting, ago: 95, now: now),
             row(104, "dotfiles", .waiting, "edit file", ago: 40, now: now),
-            row(105, "kernel-bpf", .waiting, ago: 12, now: now),
-            row(106, "paper-osdi", .idle, ago: 8, now: now, completed: true),
+            // 一条带 Stop hook 摘要、一条没有 —— 装没装 hook 两种样子一起看。
+            row(106, "paper-osdi", .idle, ago: 8, now: now, completed: true,
+                note: "评审意见都回完了,主要改了 §4 的实验设置"),
             row(107, "infra-terraform", .idle, ago: 30, now: now, completed: true),
         ]
     }
 
     private static func row(_ pid: Int32, _ name: String, _ status: SessionStatus,
                             _ waiting: String? = nil, ago: TimeInterval, now: Date,
-                            completed: Bool = false) -> SessionRow {
+                            completed: Bool = false, note: String? = nil) -> SessionRow {
         let info = SessionInfo(
-            pid: pid, sessionId: nil, cwd: "/Users/wxd/lab/personal/\(name)", name: "\(name)-a1",
+            pid: pid, sessionId: "preview-\(pid)", cwd: "/Users/wxd/lab/personal/\(name)", name: "\(name)-a1",
             kind: "interactive", entrypoint: "cli", version: "2.1.226",
             status: status, waitingFor: waiting,
             startedAt: now.addingTimeInterval(-3600),
             statusUpdatedAt: now.addingTimeInterval(-ago)
         )
-        return SessionRow(info: info, completedAt: completed ? now.addingTimeInterval(-ago) : nil)
+        let at = now.addingTimeInterval(-ago)
+        return SessionRow(
+            info: info,
+            completedAt: completed ? at : nil,
+            note: note.map { SidecarNote(sessionId: "preview-\(pid)", summary: $0, abnormal: nil, at: at) })
     }
 }
 

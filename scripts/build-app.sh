@@ -32,4 +32,12 @@ else
   echo "    类型「代码签名」,自签名根证书,然后重新 make app。"
 fi
 
+# 装过 Stop hook 的话,顺手把那份拷贝也刷成新的。没装过就什么都不做 ——
+# 不该因为编译了一次就往用户的 ~/.puppy 里塞东西。
+HOOK_BIN="$HOME/.puppy/bin/puppy"
+if [ -f "$HOOK_BIN" ]; then
+  cp "$BIN" "$HOOK_BIN.new" && chmod +x "$HOOK_BIN.new" && mv -f "$HOOK_BIN.new" "$HOOK_BIN"
+  echo "已刷新 Stop hook 用的二进制 $HOOK_BIN"
+fi
+
 echo "已生成 $APP"

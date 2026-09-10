@@ -8,6 +8,9 @@ enum CLI {
         let store = SessionStore()
         store.refresh()
         printTable(store.rows, header: "session (\(store.rows.count)) — mascot: \(banner(store))")
+        // 栈的内容跟表不是一回事(它只收「在等你」和「刚跑完」,而且带 hook 摘要),
+        // 一起打出来才看得全 —— 跟 `--watch` 打的是同一份。
+        for bubble in store.bubbles { print("  💬 \(bubble.debugLine)") }
     }
 
     /// 列出所有能用的皮肤。皮肤画坏了(帧条尺寸对不上、少 skin.json)时,

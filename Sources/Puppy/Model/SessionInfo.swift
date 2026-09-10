@@ -181,6 +181,15 @@ enum DisplayState: Equatable {
 struct SessionRow: Identifiable, Equatable {
     let info: SessionInfo
     let completedAt: Date?
+    /// Stop hook 递过来的「这一轮干了什么」。**纯装饰**:没有就退回「跑完了」,
+    /// 不参与任何状态判定,也不影响这一行在不在栈里。
+    let note: SidecarNote?
+
+    init(info: SessionInfo, completedAt: Date?, note: SidecarNote? = nil) {
+        self.info = info
+        self.completedAt = completedAt
+        self.note = note
+    }
 
     var id: Int32 { info.pid }
 

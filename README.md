@@ -67,6 +67,16 @@ session 跑完顺手退出 claude 也没关系:完成记录只按时间窗淘汰
 - 「已等 40m」是分钟级的 —— 秒级要一个 1Hz 时钟,而这是个 24 小时挂着的窗口。
 - **点一下** = 跳到那个 session 的 iTerm 窗口(跟点列表里的行一样)。注意跳过去**不会**让它消失,你没真回答它就还在。
 - 默认开在它左边,左边挤不下就翻到右边;点开列表面板时整摞让位(列表里本来就都有)。没有系统通知、没有声音。
+- 装了 Stop hook(`make hook`)之后,「跑完了」会换成**那一轮的结论**:
+
+  ```
+  ╭─────────────────────────────╮
+  │ ✓ agentic-research        1m │
+  │ 补上了缺的重试逻辑,测试全过   │
+  ╰─────────────────────────────╯◀ ⚡
+  ```
+
+  这句话注册表里根本没有,只能靠 hook 递过来 —— 见下面「[那一轮到底干了什么](#那一轮到底干了什么可选的-stop-hook)」。
 
 ### 换个形象
 
@@ -127,8 +137,9 @@ session 跑完顺手退出 claude 也没关系:完成记录只按时间窗淘汰
 ### 命令行(调试用)
 
 ```bash
-make list                    # 打印当前 session 表
+make list                    # 打印当前 session 表 + 气泡栈
 make watch                   # 持续打印状态变化(FSEvents 驱动)
+make hook / make unhook      # 装/卸 Stop hook(见下)
 ./.build/debug/Puppy --focus <pid>              # 单独验证 pid → tty → iTerm2 跳转
 ./.build/debug/Puppy --render <dir> [--skin <id>]  # 把每个状态的每一帧渲染成 PNG
 ./.build/debug/Puppy --skins                    # 列出可用皮肤
@@ -166,6 +177,44 @@ Claude Code CLI 自己维护一份实时注册表:`~/.claude/sessions/<pid>.json
 于是「有时候跑完了不冒气泡」。改成只看文件字段的无状态判定后,
 漏事件、app 重启、pid 复用都不再影响结论。
 
+### 那一轮到底干了什么(可选的 Stop hook)
+
+注册表只说得出「现在是什么状态」,说不出「刚才那轮做完了什么」—— 那句话只在 CLI
+进程内存里。唯一的出口是 Claude Code 的 `Stop` hook,它的 payload 带着
+`last_assistant_message`。
+
+```bash
+make hook       # 写进 ~/.claude/settings.json(先留一份 .bak),对所有项目生效
+make unhook     # 卸干净,不留渣
+```
+
+装上之后,每轮任务收尾时 Claude Code 会拉起 `~/.puppy/bin/puppy --hook`,它把回答的
+第一段提炼成一句话,写到 `~/.puppy/events/<session-id>.json`。Puppy 用第二个 FSEvents
+监听那个目录,按 `sessionId` 配到对应的行上。**新开的 session 才生效**,已经开着的要重启。
+
+几个刻意的选择:
+
+- **`async: true`。** 少了这个,Claude 每次说完话都要等这个进程退出才算收尾 ——
+  为一句气泡文案拖慢真正的工作,不值。
+- **hook 那一端永远 exit 0、永远不写 stdout/stderr。** 它挂在别人每一轮任务的收尾上,
+  一只桌面宠物的装饰功能没资格在那儿打印错误。
+- **命令指向 `~/.puppy/bin/puppy` 这份拷贝**,不是 `.build/` 里的那个。否则
+  `make clean` 一下,每个 session 每一轮都会去执行一个不存在的文件。`make app` 会
+  顺手刷新这份拷贝(没装过就不动)。
+
+**为什么状态判定不搬过来用 hook。** 试过就知道这是个坑:
+
+- hook 是**边沿触发**的,而栈的语义(`栈 ≡ { 在等你 } ∪ { 刚跑完 }`)是个集合 ——
+  电平量。app 没开、重启、hook 失败,任何一次丢失都变成永久错误状态。注册表则是
+  「现在是什么」,冷启动就是对的。上面那段 `busy → idle` 的教训就是同一个坑。
+- hook 的 payload 里**没有 pid**(官方文档明说)。而这个 app 从列表行到 iTerm 跳转
+  全是 pid 寻址的,还得回去读注册表才能还原。
+- 延迟也不是瓶颈:hook 到 app 之间总得走一次 IPC,最省事的 IPC 就是写文件到被监听的
+  目录 —— 绕回原地,只是中间多插一次 fork/exec。
+
+所以 hook 只干注册表干不了的那一件事,**并且被关在纯装饰层里**:摘要配不上
+(没装 hook / 没赶上 / 时间戳对不上 `noteSlop`)就退回「跑完了」,状态永远不受影响。
+
 ### park 到后台的那一轮
 
 Ctrl-B 把一轮任务丢到后台之后,CLI 就**不再更新这个 session 的文件了** ——
@@ -188,7 +237,8 @@ tmux / ssh / 非 iTerm 终端里的 session 拿不到匹配的 tty,这时候只�
 
 用户明确要求过事件驱动而非轮询,所以:
 
-- **FSEvents** 监听 `~/.claude/sessions/`,`latency=0.3s` 让内核合并连续写入。
+- **FSEvents** 监听 `~/.claude/sessions/`(装了 hook 的话还有 `~/.puppy/events/`),
+  `latency=0.3s` 让内核合并连续写入。
   回调不解析事件内容,只当作「该重扫了」—— 目录里全是几百字节的小 JSON,
   整个重读是幂等的,原子写 / rename / 事件合并这些边缘情况因此全都不用管。
 - 只监听 `sessions/` 这一层。FSEvents 是递归的,往上监听 `~/.claude` 会把
