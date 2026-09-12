@@ -15,20 +15,14 @@ is only a default. Put in your own cat, your avatar, or a plain colored square.
 > The app's own interface is Chinese only at the moment. The mockups below show the real
 > strings, glossed in English. Adding localization is a welcome PR.
 
-## Highlights
+## Contents
 
-- **One look tells you which session is waiting on you.** Asleep means everything is idle,
-  glancing around means work is running, bristling and hopping means someone hit a
-  permission prompt.
-- **Things that need your hands stack up and never push each other out.** Three sessions
-  waiting is three cards. They don't rotate or queue behind one another. Answer one in its
-  terminal and that card goes away by itself.
-- **Click to jump.** Any bubble, or any row of the list, takes you to the matching iTerm2
-  window or tab.
-- **It never posts a system notification or makes a sound.**
-- **0% CPU while everything is idle.** FSEvents throughout, with no polling anywhere.
-- **A skin is four PNGs and one json file.** Drop it into `~/.puppy/skins/` and pick it
-  from the right-click menu without restarting or rebuilding anything.
+- [What this is](#what-this-is)
+- [Installing it](#installing-it)
+- [Using it](#using-it)
+- [Further reading](#further-reading)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## What this is
 
@@ -37,6 +31,12 @@ hit a permission prompt twenty minutes ago while you were looking somewhere else
 moves that into a corner of your screen: a small icon with no Dock presence and no
 notifications. Its animation is the global state, the stack of bubbles beside it is your
 to-do list, and clicking one puts you back in that terminal.
+
+One look tells you which session is waiting on you: asleep means everything is idle,
+glancing around means work is running, bristling and hopping means someone hit a permission
+prompt. Things that need your hands stack up beside it, one card each, and never push each
+other out. Clicking a card, or a row of the list, jumps to that iTerm2 window or tab. It
+never posts a system notification or makes a sound.
 
 What it looks like is up to you. The app knows four states (asleep, running, waiting on
 you, just finished) and plays one frame animation per state. Whatever those four animations
@@ -48,9 +48,60 @@ one file per running process. It never opens the transcripts under `~/.claude/pr
 which run to tens of megabytes. Install the optional Stop hook and "done" becomes what the
 turn actually concluded. The reasoning behind all of this is in [docs/DESIGN.md](docs/DESIGN.md).
 
+FSEvents throughout, with no polling anywhere: measured at 0% CPU while every session is
+idle, and around 3% while the animation is actually playing. [What that buys and what it
+costs](docs/DESIGN.md#省电).
+
 **Requirements:** macOS 14+, a Swift 6 toolchain (Xcode or a standalone one), and iTerm2.
 Focus switching goes through iTerm2's AppleScript interface, so a session living in some
 other terminal has no window to raise and Puppy only brings iTerm to the front.
+
+## Installing it
+
+```bash
+git clone https://github.com/wxdwfc/Claude-puppy.git
+cd Claude-puppy
+make run      # build the .app, sign it, launch it (kills any running instance first)
+```
+
+`make stop` quits. Generating the default artwork needs Pillow; without it Puppy still comes
+up and falls back to the pixel skin compiled into the binary.
+
+### Make a signing certificate (worth doing)
+
+Without one, the build falls back to ad-hoc signing. That runs, but **the signature fingerprint changes
+on every rebuild**, which keeps invalidating the "Puppy wants to control iTerm2" grant, and
+you re-authorize every single time you click a session row. One self-signed certificate
+settles it for good:
+
+1. Open Keychain Access → Certificate Assistant → Create a Certificate…
+2. Name it `puppy-dev`, identity type "Self Signed Root", certificate type "Code Signing"
+3. Run `make run` again. The build script picks it up and signs with it.
+
+The first time you click a session row, macOS asks for Automation permission once. Deny it by
+accident and Puppy will walk you to System Settings → Privacy & Security → Automation.
+
+### Optional: let the bubbles say something useful
+
+```bash
+make hook       # install the Stop hook into ~/.claude/settings.json (a .bak is kept first)
+make unhook     # remove it cleanly
+```
+
+Without it, the bubble only says 跑完了 ("done"). With it, the bubble says what that turn
+concluded:
+
+```
+╭─────────────────────────────╮
+│ ✓ agentic-research        1m │
+│ 补上了缺的重试逻辑,测试全过   │
+╰─────────────────────────────╯◀ ⚡
+```
+
+It applies to every project, and **only sessions started afterward count**, so restart
+anything already open. The channel is fenced inside the decoration layer: when a summary
+can't be matched up, the bubble falls back to "done" and state detection is never touched.
+[Why the hook isn't used for everything](docs/DESIGN.md#stop-hook-干的那件事).
 
 ## Using it
 
@@ -142,53 +193,6 @@ make shot                    # regenerate the screenshot above (offscreen, no ca
 ./.build/debug/Puppy --skins                       # list available skins
 ```
 
-## Installing it
-
-```bash
-git clone https://github.com/wxdwfc/Claude-puppy.git
-cd Claude-puppy
-make run      # build the .app, sign it, launch it (kills any running instance first)
-```
-
-`make stop` quits. Generating the default artwork needs Pillow; without it Puppy still comes
-up and falls back to the pixel skin compiled into the binary.
-
-### Make a signing certificate (worth doing)
-
-Without one, the build falls back to ad-hoc signing. That runs, but **the signature fingerprint changes
-on every rebuild**, which keeps invalidating the "Puppy wants to control iTerm2" grant, and
-you re-authorize every single time you click a session row. One self-signed certificate
-settles it for good:
-
-1. Open Keychain Access → Certificate Assistant → Create a Certificate…
-2. Name it `puppy-dev`, identity type "Self Signed Root", certificate type "Code Signing"
-3. Run `make run` again. The build script picks it up and signs with it.
-
-The first time you click a session row, macOS asks for Automation permission once. Deny it by
-accident and Puppy will walk you to System Settings → Privacy & Security → Automation.
-
-### Optional: let the bubbles say something useful
-
-```bash
-make hook       # install the Stop hook into ~/.claude/settings.json (a .bak is kept first)
-make unhook     # remove it cleanly
-```
-
-Without it, the bubble only says 跑完了 ("done"). With it, the bubble says what that turn
-concluded:
-
-```
-╭─────────────────────────────╮
-│ ✓ agentic-research        1m │
-│ 补上了缺的重试逻辑,测试全过   │
-╰─────────────────────────────╯◀ ⚡
-```
-
-It applies to every project, and **only sessions started afterward count**, so restart
-anything already open. The channel is fenced inside the decoration layer: when a summary
-can't be matched up, the bubble falls back to "done" and state detection is never touched.
-[Why the hook isn't used for everything](docs/DESIGN.md#stop-hook-干的那件事).
-
 ## Further reading
 
 - [docs/DESIGN.md](docs/DESIGN.md): where the states come from, the Stop hook trade-offs,
@@ -210,3 +214,7 @@ Issues and PRs are welcome, especially these:
 - **English strings in the app.** None of the UI is localized yet.
 
 This is a personal toy project. Merges happen at weekend speed, so don't expect an SLA.
+
+## License
+
+MIT. The full text is in [LICENSE](LICENSE).
