@@ -49,8 +49,8 @@ struct BubbleStackView: View {
                 BubbleView(item: item,
                            tailOnRight: tailOnRight,
                            hasTail: item.id == shown.first?.id,
-                           animated: animated)
-                    .onTapGesture { onSelect(item.pid) }
+                           animated: animated,
+                           onTap: { onSelect(item.pid) })
             }
         }
         .frame(width: Self.width, alignment: tailOnRight ? .leading : .trailing)
@@ -70,6 +70,8 @@ struct BubbleView: View {
     /// 只有最靠近小狗的那一条为 true。
     var hasTail: Bool = true
     var animated: Bool = true
+    /// 点中这一条。**必须由本视图自己收**,不能让外面套一层 `onTapGesture` —— 见下面的手势。
+    var onTap: () -> Void = {}
 
     /// 弹出动画。静止出现的东西在余光里跟没出现一样。
     @State private var appeared = false
@@ -93,9 +95,23 @@ struct BubbleView: View {
         // 条与条之间的 4pt 缝仍然是空的,照旧穿透。
         .background(Color.black.opacity(0.002))
         .contentShape(Rectangle())
-        // 点击本身仍旧由外面的 onTapGesture 收 —— 这一发只负责把按下的样子做出来。
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0).updating($pressed) { _, state, _ in state = true }
+        // 按下态和点击是**同一发手势**。
+        //
+        // 先前是外面套 `onTapGesture`、这里再挂一个 minimumDistance 0 的 DragGesture 做按下态,
+        // 于是点了永远没反应:子视图的手势优先于祖先的,`simultaneousGesture` 只跟**本视图自己的**
+        // 手势并行,拦不住它把事件从上层的 TapGesture 手里抢走。按下去会变暗(说明事件到了),
+        // 松手什么都不发生 —— 正是「点了没反应」的样子。
+        //
+        // 合成一发之后顺带拿到了松手位置:滑出气泡再松手不算点中,跟系统按钮一致。
+        .gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                .updating($pressed) { _, state, _ in state = true }
+                .onEnded { value in
+                    let bounds = CGRect(x: 0, y: 0,
+                                        width: BubbleStackView.width,
+                                        height: BubbleStackView.rowHeight)
+                    if bounds.contains(value.location) { onTap() }
+                }
         )
         .scaleEffect(visible ? (pressed ? 0.97 : 1) : 0.9, anchor: tailOnRight ? .trailing : .leading)
         .opacity(visible ? (pressed ? 0.72 : 1) : 0)
