@@ -12,6 +12,7 @@ final class ITermFocuser {
         case focused            // 精确定位到了那个 session
         case activatedOnly      // tty 匹配不上(tmux / ssh / 别的终端),只把 iTerm 提到前台
         case notAuthorized      // 用户拒绝了 Automation 授权
+        case busy               // 上一发还挂在 iTerm 那儿,这一次直接丢掉(见 focus)
         case failed(String)
     }
 
@@ -22,15 +23,37 @@ final class ITermFocuser {
     /// TCC 拒绝授权时的错误码。
     private static let errAEEventNotPermitted = -1743
 
+    /// iTerm 没在超时内答话 —— AppleScript 的 `with timeout` 抛的就是这个。
+    private static let errAETimeout = -1712
+
+    /// 一次点击最多等 iTerm 多久。
+    ///
+    /// Apple Event 的默认超时是 60s,而这条队列是串行的:iTerm 主线程一忙
+    /// (刷大段输出、弹了个模态),那 60s 里的每一次点击都排在后面一动不动 ——
+    /// 屏幕上看就是「气泡点不了」,过一会儿又自己好了。
+    /// 宁可 3s 就抖一下说没成,也不能这么闷着堵。
+    private static let timeoutSeconds = 3
+
+    /// 有一发正在飞。只在主线程读写。
+    private var inFlight = false
+
     // OSA 的这几个常量没有桥接到 Swift,只能写字面值。
     private static let suiteAppleScript = AEEventClass(0x6173_6372)  // 'ascr'
     private static let eventSubroutine  = AEEventID(0x7073_6272)     // 'psbr'
     private static let keySubroutineName = AEKeyword(0x736E_616D)    // 'snam'
 
+    /// 排队是这里最糟的行为:队列用户看不见,点第二下只会觉得没反应。
+    /// 已经有一发在等 iTerm 就直接回 `.busy`,由调用方立刻给个反馈。
+    @MainActor
     func focus(pid: Int32, completion: @escaping (Outcome) -> Void) {
+        guard !inFlight else { completion(.busy); return }
+        inFlight = true
         queue.async { [self] in
             let outcome = run(pid: pid)
-            DispatchQueue.main.async { completion(outcome) }
+            DispatchQueue.main.async {
+                self.inFlight = false
+                completion(outcome)
+            }
         }
     }
 
@@ -48,6 +71,9 @@ final class ITermFocuser {
             let code = (error[NSAppleScript.errorNumber] as? Int) ?? 0
             if code == Self.errAEEventNotPermitted {
                 return .notAuthorized
+            }
+            if code == Self.errAETimeout {
+                return .failed("iTerm 没在 \(Self.timeoutSeconds)s 内响应")
             }
             let message = (error[NSAppleScript.errorMessage] as? String) ?? "AppleScript 错误 \(code)"
             return .failed(message)
@@ -111,6 +137,9 @@ final class ITermFocuser {
 
     private static let source = """
     on focusTTY(targetTTY)
+      -- 超时卡在这一层:里面每一发 Apple Event 都受它管。
+      -- 代价是首次授权那个 TCC 对话框也会被算进这 3s(用户点掉之后下一次点击就正常)。
+      with timeout of \(timeoutSeconds) seconds
       tell application "iTerm2"
         if targetTTY is not "" then
           repeat with w in windows
@@ -131,6 +160,7 @@ final class ITermFocuser {
         activate
         return false
       end tell
+      end timeout
     end focusTTY
     """
 

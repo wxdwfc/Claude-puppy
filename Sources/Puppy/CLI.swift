@@ -59,6 +59,7 @@ enum CLI {
             case .focused:       print("✅ 已选中对应的 iTerm2 session")
             case .activatedOnly: print("⚠️  tty 匹配不上,只把 iTerm2 提到前台(tmux / ssh / 别的终端)")
             case .notAuthorized: print("🔒 Automation 授权被拒 —— 需要在系统设置里放行")
+            case .busy:          print("⏳ 上一发还在等 iTerm")   // --focus 只打一发,到不了这儿
             case .failed(let m): print("❌ \(m)")
             }
             exit(0)

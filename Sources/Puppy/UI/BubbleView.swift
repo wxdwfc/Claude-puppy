@@ -73,6 +73,8 @@ struct BubbleView: View {
 
     /// 弹出动画。静止出现的东西在余光里跟没出现一样。
     @State private var appeared = false
+    /// 按下态。没有它的话,「没点中」和「点中了但 iTerm 还没让开」长得一模一样。
+    @GestureState private var pressed = false
 
     private var visible: Bool { !animated || appeared }
 
@@ -82,10 +84,22 @@ struct BubbleView: View {
             card
             if tailOnRight && hasTail { tail }
         }
-        .frame(height: BubbleStackView.rowHeight)
+        // 整条按 panel 的宽度铺满(含尾巴那一列):没尾巴的那几条右边空着 8pt,
+        // 不铺的话点在那儿是穿透到底下的 iTerm 去的。
+        .frame(width: BubbleStackView.width, height: BubbleStackView.rowHeight,
+               alignment: tailOnRight ? .leading : .trailing)
+        // WindowServer 按**画出来的 alpha** 做命中测试,全透明的像素点不到(同 MascotPanel)。
+        // 铺一层看不见但 alpha 非零的底,那 8pt 才算这条气泡的地盘;
+        // 条与条之间的 4pt 缝仍然是空的,照旧穿透。
+        .background(Color.black.opacity(0.002))
         .contentShape(Rectangle())
-        .scaleEffect(visible ? 1 : 0.9, anchor: tailOnRight ? .trailing : .leading)
-        .opacity(visible ? 1 : 0)
+        // 点击本身仍旧由外面的 onTapGesture 收 —— 这一发只负责把按下的样子做出来。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0).updating($pressed) { _, state, _ in state = true }
+        )
+        .scaleEffect(visible ? (pressed ? 0.97 : 1) : 0.9, anchor: tailOnRight ? .trailing : .leading)
+        .opacity(visible ? (pressed ? 0.72 : 1) : 0)
+        .animation(.easeOut(duration: 0.08), value: pressed)
         .onAppear {
             guard animated else { return }
             withAnimation(.spring(response: 0.28, dampingFraction: 0.65)) { appeared = true }

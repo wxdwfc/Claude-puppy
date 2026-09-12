@@ -118,6 +118,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch outcome {
             case .focused, .activatedOnly:
                 break   // activatedOnly 是 tmux/ssh 场景的正常降级,不当失败处理
+            case .busy:
+                // 上一发还在等 iTerm。抖一下 —— 「点到了,但得等」总好过看起来没反应。
+                self.store.shake()
             case .notAuthorized:
                 ITermFocuser.openAutomationSettings()
                 self.store.shake()
