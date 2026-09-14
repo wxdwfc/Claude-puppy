@@ -48,19 +48,21 @@ enum Shot {
         let now = Date()
         return [
             row(41207, "puppy", .waiting, "permission prompt", ago: 194, now: now),
-            row(41533, "agentic-research", .waiting, "plan approval", ago: 71, now: now),
+            row(41533, "agentic-research", .waiting, "审批请求", ago: 71, now: now, provider: .codex),
             row(40988, "cse-csp-lecture", .busy, ago: 42, now: now),
             row(41890, "paper-osdi", .idle, ago: 9, now: now, completed: true,
-                note: "评审意见都回完了,主要改了 §4 的实验设置"),
+                note: "评审意见都回完了,主要改了 §4 的实验设置", provider: .codex),
             row(39104, "dotfiles", .idle, ago: 5400, now: now),
         ]
     }
 
     private static func row(_ pid: Int32, _ name: String, _ status: SessionStatus,
                             _ waiting: String? = nil, ago: TimeInterval, now: Date,
-                            completed: Bool = false, note: String? = nil) -> SessionRow {
+                            completed: Bool = false, note: String? = nil,
+                            provider: SessionProvider = .claude) -> SessionRow {
         // cwd 拼在真实 home 底下,`shortCwd` 才折得成 `~/lab/...`。
         let info = SessionInfo(
+            provider: provider,
             pid: pid, sessionId: "shot-\(pid)",
             cwd: "\(NSHomeDirectory())/lab/personal/\(name)", name: name,
             kind: "interactive", entrypoint: "cli", version: "2.1.226",

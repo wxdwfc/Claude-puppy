@@ -1,6 +1,6 @@
 # Puppy
 
-一只悬浮在桌面上的小宠物,实时反映 iTerm2 里每个 Claude Code session 的状态。
+一只悬浮在桌面上的小宠物,展示 iTerm2 里 Claude Code 和本地 Codex CLI session 的状态。
 形象是一套可替换的贴图 —— 内置的那只只是默认值,换成你自己的猫、你的头像、一个纯色方块都行。
 
 [![platform](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://www.apple.com/macos/)
@@ -8,6 +8,10 @@
 [![terminal](https://img.shields.io/badge/terminal-iTerm2-blue)](https://iterm2.com)
 
 [English](../README.md)
+
+**Codex CLI：** `make codex-hook` 安装状态 hooks，在 Codex 的 `/hooks` 中审阅并信任后，
+新开或恢复命令行会话，再 `make run` 更新 Puppy。列表会同时显示 Claude 和 Codex，点击跳回 iTerm。
+Codex 审批气泡可能保留到工具返回；完整范围、安装和卸载见 [Codex CLI 接入](CODEX.md)。
 
 ![桌面右下角:小狗、身边那摞待办气泡,和双击展开的 session 列表](screenshot.png)
 

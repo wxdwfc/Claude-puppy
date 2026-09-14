@@ -40,7 +40,7 @@ struct BubbleItem: Identifiable, Equatable {
         case .busy, .idle, .other: return nil
         }
         pid = row.info.pid
-        name = row.info.displayName
+        name = "\(row.info.provider.label) · \(row.info.displayName)"
         ageLabel = row.stateDuration(now: now).flatMap(Self.age(_:))
         note = row.note?.display
     }

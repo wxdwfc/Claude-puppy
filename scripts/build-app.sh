@@ -40,4 +40,10 @@ if [ -f "$HOOK_BIN" ]; then
   echo "已刷新 Stop hook 用的二进制 $HOOK_BIN"
 fi
 
+CODEX_HOOK_BIN="$HOME/.puppy/bin/puppy-codex"
+if [ -f "$CODEX_HOOK_BIN" ]; then
+  cp "$BIN" "$CODEX_HOOK_BIN.new" && chmod +x "$CODEX_HOOK_BIN.new" && mv -f "$CODEX_HOOK_BIN.new" "$CODEX_HOOK_BIN"
+  echo "已刷新 Codex hook 用的二进制 $CODEX_HOOK_BIN"
+fi
+
 echo "已生成 $APP"

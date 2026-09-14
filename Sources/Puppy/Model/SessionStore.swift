@@ -46,6 +46,7 @@ final class SessionStore: ObservableObject {
     /// 第二个监听:Stop hook 写的 sidecar 目录。跟上面那个完全独立 ——
     /// 它挂了只是气泡少一句话,不影响状态。
     private var eventsWatcher: DirectoryWatcher?
+    private var codexWatcher: DirectoryWatcher?
     private var fallbackTimer: DispatchSourceTimer?
     private var expiryTimer: DispatchSourceTimer?
     private var started = false
@@ -71,6 +72,11 @@ final class SessionStore: ObservableObject {
         // 没装 hook 时这个目录压根不存在,start() 失败是正常的,不用管。
         eventsWatcher?.start()
 
+        codexWatcher = DirectoryWatcher(path: CodexSessionReader.directory.path) { [weak self] in
+            Task { @MainActor in self?.refresh() }
+        }
+        codexWatcher?.start()
+
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(
             deadline: .now() + Self.fallbackInterval,
@@ -81,6 +87,7 @@ final class SessionStore: ObservableObject {
             guard let self else { return }
             if self.watcher?.start() == false { /* 目录仍不存在,继续等 */ }
             _ = self.eventsWatcher?.start()
+            _ = self.codexWatcher?.start()
             self.refresh()
         }
         timer.resume()
@@ -90,6 +97,7 @@ final class SessionStore: ObservableObject {
     func stop() {
         watcher?.stop(); watcher = nil
         eventsWatcher?.stop(); eventsWatcher = nil
+        codexWatcher?.stop(); codexWatcher = nil
         fallbackTimer?.cancel(); fallbackTimer = nil
         expiryTimer?.cancel(); expiryTimer = nil
         started = false
@@ -114,7 +122,7 @@ final class SessionStore: ObservableObject {
     func refresh() {
         let result = SessionRegistryReader.scan()
         let now = Date()
-        let scanned = merge(result, now: now)
+        let scanned = merge(result, now: now) + CodexSessionReader.scan()
         let notes = SidecarStore.scan(now: now)
 
         let newRows = Self.sorted(scanned.map { info in
@@ -148,6 +156,11 @@ final class SessionStore: ObservableObject {
     /// 配不上就返回 nil —— 气泡退回「跑完了」,永远不会显示错的东西。
     private static func note(for info: SessionInfo, completedAt: Date?,
                              in notes: [String: SidecarNote]) -> SidecarNote? {
+        if info.provider == .codex {
+            guard let completedAt, let sessionId = info.sessionId,
+                  let summary = info.completionSummary else { return nil }
+            return SidecarNote(sessionId: sessionId, summary: summary, abnormal: nil, at: completedAt)
+        }
         guard let completedAt, let sessionId = info.sessionId, let note = notes[sessionId] else { return nil }
         guard abs(note.at.timeIntervalSince(completedAt)) <= Self.noteSlop else { return nil }
         return note

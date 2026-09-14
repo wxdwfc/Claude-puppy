@@ -1,4 +1,4 @@
-.PHONY: app run stop list watch build clean skin shot hook unhook
+.PHONY: app run stop list watch build clean skin shot hook unhook codex-hook codex-unhook test
 
 APP := .build/Puppy.app
 
@@ -41,6 +41,15 @@ hook: build
 
 unhook: build
 	@./.build/debug/Puppy --uninstall-hook
+
+codex-hook: build
+	@./.build/debug/Puppy --install-codex-hook
+
+codex-unhook: build
+	@./.build/debug/Puppy --uninstall-codex-hook
+
+test:
+	swift test
 
 clean:
 	rm -rf .build

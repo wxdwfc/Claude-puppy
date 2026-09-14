@@ -42,6 +42,7 @@ enum CLI {
         }
         store.start()
         print("watching \(SessionRegistryReader.directory.path) — Ctrl-C 退出")
+        print("watching \(CodexSessionReader.directory.path) (Codex CLI hooks)")
         let stamp = timeFormatter.string(from: Date())
         print("\n[\(stamp)] mascot: \(banner(store))")
         for bubble in store.bubbles { print("  💬 \(bubble.debugLine)") }
@@ -86,7 +87,7 @@ enum CLI {
     private static func printTable(_ rows: [SessionRow], header: String?) {
         if let header { print(header) }
         guard !rows.isEmpty else {
-            print("  (无运行中的 Claude Code session)")
+            print("  (无运行中的 Claude / Codex session)")
             return
         }
         let now = Date()
@@ -96,7 +97,7 @@ enum CLI {
             let dur = row.stateDuration(now: now).map(format(duration:)) ?? "-"
             let pid = String(row.info.pid).padding(toLength: 7, withPad: " ", startingAt: 0)
             let state = "\(row.display.icon) \(row.display.label)".padding(toLength: 22, withPad: " ", startingAt: 0)
-            print("  \(pid) \(name)  \(state) \(dur.padding(toLength: 7, withPad: " ", startingAt: 0)) \(row.info.shortCwd)")
+            print("  \(pid) [\(row.info.provider.label)] \(name)  \(state) \(dur.padding(toLength: 7, withPad: " ", startingAt: 0)) \(row.info.shortCwd)")
         }
     }
 

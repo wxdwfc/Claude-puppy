@@ -1,6 +1,6 @@
 # Puppy
 
-A small pet that sits on your desktop and shows you what every Claude Code session in
+A small pet that sits on your desktop and shows you what Claude Code and local Codex CLI sessions in
 iTerm2 is doing right now. What it looks like is a swappable skin, and the one in the repo
 is only a default. Put in your own cat, your avatar, or a plain colored square.
 
@@ -104,6 +104,18 @@ can't be matched up, the bubble falls back to "done" and state detection is neve
 [Why the hook isn't used for everything](docs/DESIGN.md#stop-hook-干的那件事).
 
 ## Using it
+
+### Codex CLI sessions
+
+Run `make codex-hook`, review and trust the Puppy commands in Codex's `/hooks`, then
+start or resume a CLI session and rebuild/restart Puppy with `make run`.
+Claude and Codex appear together with provider labels, completion bubbles, and iTerm2 focus.
+`make codex-unhook` removes only Puppy's Codex hooks. Existing hook settings are backed up
+and preserved. Requires a Codex version supporting lifecycle hooks (checked with 0.154.0).
+
+Codex status is observed through hooks: approval waits may remain until the approved tool
+returns, and missed events cannot be reconstructed. Desktop, headless, and remote/shared-daemon
+sessions are outside this integration. See [Codex setup and limitations](docs/CODEX.md).
 
 ### Bossing it around
 

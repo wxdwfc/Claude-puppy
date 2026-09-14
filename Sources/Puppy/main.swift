@@ -4,6 +4,10 @@ import AppKit
 // 而且 headless 模式需要在 NSApplication 起来之前就分流。
 let arguments = Set(CommandLine.arguments.dropFirst())
 
+if arguments.contains("--codex-hook") { CodexHook.receive() }
+if arguments.contains("--install-codex-hook") { exit(CodexHookInstaller.run(install: true)) }
+if arguments.contains("--uninstall-codex-hook") { exit(CodexHookInstaller.run(install: false)) }
+
 // 最先分流:这条是被 Claude Code 每一轮收尾时拉起来的,越短越好,
 // 而且绝不能碰 stdout —— 见 StopHook.receive()。
 if arguments.contains("--hook") {
@@ -12,7 +16,7 @@ if arguments.contains("--hook") {
 
 if arguments.contains("--help") || arguments.contains("-h") {
     print("""
-    puppy — Claude Code 桌面宠物
+    puppy — Claude Code / Codex CLI 桌面宠物
 
       (无参数)   启动悬浮吉祥物
       --list     打印当前 session 表后退出
@@ -26,6 +30,9 @@ if arguments.contains("--help") || arguments.contains("-h") {
                  往 ~/.claude/settings.json 里装/卸 Stop hook。
                  装上之后气泡能显示「这一轮干了什么」,不装也不影响其它功能
       --hook     hook 自己调的,不用手敲
+      --install-codex-hook / --uninstall-codex-hook
+                 往 $CODEX_HOME/hooks.json (默认 ~/.codex/hooks.json) 装/卸 Codex CLI 状态 hooks
+      --codex-hook  Codex hook 自己调的,不用手敲
     """)
     exit(0)
 }
