@@ -112,6 +112,12 @@ start or resume a CLI session and rebuild/restart Puppy with `make run`.
 Claude and Codex appear together with provider labels, completion bubbles, and iTerm2 focus.
 `make codex-unhook` removes only Puppy's Codex hooks. Existing hook settings are backed up
 and preserved. Requires a Codex version supporting lifecycle hooks (checked with 0.154.0).
+Since 0.157 the CLI talks to a shared app-server daemon by default, and hooks run there with no
+link back to your terminal. Start Codex with `--no-daemon`, e.g. in `~/.zshrc`:
+
+```sh
+alias codex='codex --no-daemon'
+```
 
 Codex status is observed through hooks: approval waits may remain until the approved tool
 returns, and missed events cannot be reconstructed. Desktop, headless, and remote/shared-daemon

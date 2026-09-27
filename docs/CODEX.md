@@ -15,6 +15,15 @@ make run
 `$CODEX_HOME/hooks.json`（默认 `~/.codex/hooks.json`）。已有配置会先备份为
 `hooks.json.puppy-<UUID>.bak`，其他 hooks 和未知字段会保留。重复安装不会添加重复项。
 
+Codex 0.157 起 CLI 默认连到共享的 app-server daemon，hooks 由 daemon 启动，
+进程链上找不到对应的终端，Puppy 无法识别。需要用 `--no-daemon` 启动，例如在 `~/.zshrc` 中：
+
+```sh
+alias codex='codex --no-daemon'
+```
+
+只设 `features.daemon_auto_start = false` 不够：daemon 已在运行时 CLI 仍会连上去。
+
 在 Codex 的 `/hooks` 中审阅并信任 Puppy 的命令，然后新开或恢复 CLI 会话。
 Codex 自己管理 hook 信任；Puppy 不修改信任记录，不启用跳过信任或跳过审批的选项。
 已经打开但没有运行这些 hooks 的会话不会自动补入。

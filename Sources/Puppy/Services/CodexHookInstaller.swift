@@ -76,6 +76,7 @@ enum CodexHookInstaller {
                 print("命令: \(command(for: binary))")
                 print("在 Codex 的 /hooks 中审阅并信任 Puppy hooks,然后新开或恢复 CLI 会话。")
                 print("只采集本地交互式 CLI;不接管审批,不读取聊天记录。")
+                print("Codex 0.157+ 需以 codex --no-daemon 启动,否则 hooks 在共享 daemon 中运行,找不到对应终端。")
             } else {
                 print("已移除 Puppy 的 Codex hooks。已运行的 CLI 需重启才能停止旧 hooks。")
             }

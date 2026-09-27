@@ -10,7 +10,8 @@
 [English](../README.md)
 
 **Codex CLI：** `make codex-hook` 安装状态 hooks，在 Codex 的 `/hooks` 中审阅并信任后，
-新开或恢复命令行会话，再 `make run` 更新 Puppy。列表会同时显示 Claude 和 Codex，点击跳回 iTerm。
+新开或恢复命令行会话，再 `make run` 更新 Puppy。
+Codex 0.157 起默认连共享 daemon，需用 `codex --no-daemon` 启动（可在 `~/.zshrc` 里 alias）。列表会同时显示 Claude 和 Codex，点击跳回 iTerm。
 Codex 审批气泡可能保留到工具返回；完整范围、安装和卸载见 [Codex CLI 接入](CODEX.md)。
 
 ![桌面右下角:小狗、身边那摞待办气泡,和双击展开的 session 列表](screenshot.png)
