@@ -47,6 +47,7 @@ final class SessionStore: ObservableObject {
     /// 它挂了只是气泡少一句话,不影响状态。
     private var eventsWatcher: DirectoryWatcher?
     private var codexWatcher: DirectoryWatcher?
+    private var ompWatcher: DirectoryWatcher?
     private var fallbackTimer: DispatchSourceTimer?
     private var expiryTimer: DispatchSourceTimer?
     private var started = false
@@ -77,6 +78,11 @@ final class SessionStore: ObservableObject {
         }
         codexWatcher?.start()
 
+        ompWatcher = DirectoryWatcher(path: OmpSessionReader.directory.path) { [weak self] in
+            Task { @MainActor in self?.refresh() }
+        }
+        ompWatcher?.start()
+
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(
             deadline: .now() + Self.fallbackInterval,
@@ -88,6 +94,7 @@ final class SessionStore: ObservableObject {
             if self.watcher?.start() == false { /* 目录仍不存在,继续等 */ }
             _ = self.eventsWatcher?.start()
             _ = self.codexWatcher?.start()
+            _ = self.ompWatcher?.start()
             self.refresh()
         }
         timer.resume()
@@ -98,6 +105,7 @@ final class SessionStore: ObservableObject {
         watcher?.stop(); watcher = nil
         eventsWatcher?.stop(); eventsWatcher = nil
         codexWatcher?.stop(); codexWatcher = nil
+        ompWatcher?.stop(); ompWatcher = nil
         fallbackTimer?.cancel(); fallbackTimer = nil
         expiryTimer?.cancel(); expiryTimer = nil
         started = false
@@ -122,7 +130,7 @@ final class SessionStore: ObservableObject {
     func refresh() {
         let result = SessionRegistryReader.scan()
         let now = Date()
-        let scanned = merge(result, now: now) + CodexSessionReader.scan()
+        let scanned = merge(result, now: now) + CodexSessionReader.scan() + OmpSessionReader.scan()
         let notes = SidecarStore.scan(now: now)
 
         let newRows = Self.sorted(scanned.map { info in
@@ -156,7 +164,7 @@ final class SessionStore: ObservableObject {
     /// 配不上就返回 nil —— 气泡退回「跑完了」,永远不会显示错的东西。
     private static func note(for info: SessionInfo, completedAt: Date?,
                              in notes: [String: SidecarNote]) -> SidecarNote? {
-        if info.provider == .codex {
+        if info.provider != .claude {
             guard let completedAt, let sessionId = info.sessionId,
                   let summary = info.completionSummary else { return nil }
             return SidecarNote(sessionId: sessionId, summary: summary, abnormal: nil, at: completedAt)

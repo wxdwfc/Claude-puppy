@@ -1,6 +1,6 @@
 # Puppy
 
-一只悬浮在桌面上的小宠物,展示 iTerm2 里 Claude Code 和本地 Codex CLI session 的状态。
+一只悬浮在桌面上的小宠物,展示 iTerm2 里 Claude Code、本地 Codex CLI 和 omp session 的状态。
 形象是一套可替换的贴图 —— 内置的那只只是默认值,换成你自己的猫、你的头像、一个纯色方块都行。
 
 [![platform](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://www.apple.com/macos/)
@@ -90,6 +90,21 @@ make unhook     # 卸干净,不留渣
 对所有项目生效,**新开的 session 才算数**,已经开着的要重启。这条通道被关在纯装饰层里:
 摘要没配上就退回「跑完了」,状态判定永远不受影响 ——
 [为什么不干脆全用 hook](DESIGN.md#stop-hook-干的那件事)。
+
+### omp 会话
+
+运行 `make omp-hook` 安装扩展，重启已经打开的 omp 会话，再运行 `make run` 更新 Puppy。
+安装器通过 `omp config path` 找到当前 profile，将 `Support/omp-puppy.ts` 复制到
+`extensions/puppy.ts`；已有不同文件会先备份。更新 Puppy 后再次运行安装命令即可更新扩展。
+`make omp-unhook` 只删除与源码一致的安装副本，遇到手动修改过的扩展会拒绝删除。
+
+扩展把交互式主会话的状态原子写入 `~/.puppy/omp-sessions/<pid>.json`，Puppy 展示运行中、
+成功完成气泡和简短回答摘要，点击仍跳回对应 iTerm2。启动、中断、错误、自动续跑和后台等待
+都不算完成。omp 的完成回调可能早于 prompt 清理，扩展会等宿主真正空闲后发布；新一轮或
+切换会话会取消尚未发布的完成记录。
+
+已用 omp 18.12.2 验证。无界面模式和子代理不进列表；权限确认、输入等待目前仍显示运行中，
+不生成等待气泡。不读取 transcript 或凭据，安装前的事件不能补回，死进程残留记录会被忽略。
 
 ## 用起来
 

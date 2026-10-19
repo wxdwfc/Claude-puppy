@@ -16,7 +16,7 @@ if arguments.contains("--hook") {
 
 if arguments.contains("--help") || arguments.contains("-h") {
     print("""
-    puppy — Claude Code / Codex CLI 桌面宠物
+    puppy — Claude Code / Codex CLI / omp 桌面宠物
 
       (无参数)   启动悬浮吉祥物
       --list     打印当前 session 表后退出

@@ -36,6 +36,19 @@ CLI 进程一个文件,进程退出文件就没了。Puppy 只读这个,**不碰
 
 session 跑完顺手退出 claude 也没关系:完成记录只按时间窗淘汰,不跟着进程走。
 
+## omp 的生命周期状态
+
+omp 没有使用 Claude 的注册表或 Codex hooks。`Support/omp-puppy.ts` 在交互式主会话中
+订阅生命周期事件，将小型快照原子写入 `~/.puppy/omp-sessions/<pid>.json`；
+`OmpSessionReader` 校验 PID 与进程启动时间，`SessionStore` 用独立 FSEvents 监听刷新。
+不扫描聊天记录，Puppy 重启后仍能从快照恢复当前状态。
+
+完成时间必须由成功的终结 `agent_end` 显式给出，不能从 idle 推测；`willContinue`、
+`awaitingAsyncWork`、中断和错误不庆祝。omp 18.12.2 在 prompt 计数器归零前就发扩展回调，
+此时 `ctx.isIdle()` 仍是 false。扩展在回调返回后短暂检查 idle，再发布完成；新一轮、
+会话切换或退出会取消这次待发布状态，避免把上一轮完成写到新一轮上。
+权限/输入等待暂不单独识别，仍显示运行中；漏掉的扩展事件无法从历史补回。
+
 ## Stop hook 干的那件事
 
 注册表只说得出「现在是什么状态」,说不出「刚才那轮做完了什么」—— 那句话只在 CLI

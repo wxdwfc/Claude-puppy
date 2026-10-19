@@ -1,7 +1,7 @@
 # Puppy
 
-A small pet that sits on your desktop and shows you what Claude Code and local Codex CLI sessions in
-iTerm2 is doing right now. What it looks like is a swappable skin, and the one in the repo
+A small pet that sits on your desktop and shows you what Claude Code, local Codex CLI, and omp
+sessions in iTerm2 are doing right now. What it looks like is a swappable skin, and the one in the repo
 is only a default. Put in your own cat, your avatar, or a plain colored square.
 
 [![platform](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://www.apple.com/macos/)
@@ -122,6 +122,24 @@ alias codex='codex --no-daemon'
 Codex status is observed through hooks: approval waits may remain until the approved tool
 returns, and missed events cannot be reconstructed. Desktop, headless, and remote/shared-daemon
 sessions are outside this integration. See [Codex setup and limitations](docs/CODEX.md).
+
+### omp sessions
+
+Run `make omp-hook`, restart existing omp sessions, then `make run` to update Puppy.
+The installer copies `Support/omp-puppy.ts` into the active profile's
+`extensions/puppy.ts`, using `omp config path`; existing different files are backed up.
+Run it again after updating Puppy to refresh the extension. `make omp-unhook` removes
+an unchanged installed copy; it refuses to delete a locally modified extension.
+
+The extension reports interactive main sessions to `~/.puppy/omp-sessions/<pid>.json`.
+Puppy displays running state, successful completion bubbles with a short answer summary,
+and iTerm2 focus. Startup, aborts, errors, automatic continuations, and background waits
+do not count as completion. It waits for prompt unwinding after a terminal `agent_end`;
+a new turn or session switch cancels the pending completion.
+
+Checked with omp 18.12.2. Headless/subagent sessions are excluded. Approval/input waits
+remain running rather than producing waiting bubbles. No transcripts or credentials are read.
+Events before installation cannot be recovered; dead-process snapshots are ignored.
 
 ### Bossing it around
 

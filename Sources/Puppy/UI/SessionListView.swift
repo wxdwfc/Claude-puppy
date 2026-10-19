@@ -26,7 +26,7 @@ struct SessionListView: View {
             header
             Divider().opacity(0.4)
             if store.rows.isEmpty {
-                Text("没有运行中的 Claude / Codex session")
+                Text("没有运行中的 Claude / Codex / omp session")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 52)
@@ -69,7 +69,7 @@ struct SessionListView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text("Claude Code · Codex CLI")
+            Text("Claude Code · Codex CLI · omp")
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
             Text("\(store.rows.count) session")

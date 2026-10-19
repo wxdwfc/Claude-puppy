@@ -1,8 +1,14 @@
 import Foundation
 
 enum SessionProvider: String, Codable {
-    case claude, codex
-    var label: String { self == .claude ? "Claude" : "Codex" }
+    case claude, codex, omp
+    var label: String {
+        switch self {
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        case .omp: return "omp"
+        }
+    }
 }
 
 /// 注册表里出现过的 status。schema 未文档化,任何没见过的值走 `.other` 保持中性,
@@ -37,7 +43,7 @@ enum SessionStatus: Equatable {
 /// 全字段 Optional:schema 会随 CLI 版本漂移,缺字段必须能降级显示而不是丢掉整行。
 struct SessionInfo: Identifiable, Equatable {
     var provider: SessionProvider = .claude
-    /// Codex hooks explicitly record completion; startup and interruption aren't completion.
+    /// Codex hooks and omp explicitly record completion; startup and interruption aren't completion.
     var explicitCompletedAt: Date? = nil
     var completionSummary: String? = nil
     let pid: Int32
@@ -75,7 +81,7 @@ struct SessionInfo: Identifiable, Equatable {
     /// 唯一要摘掉的是刚开出来的新 session:它一出生就是 idle,但那一刻的
     /// statusUpdatedAt 紧贴着 startedAt(实测 33ms),用这个把它跟真的跑完区分开。
     func completedAt(now: Date, within window: TimeInterval) -> Date? {
-        if provider == .codex {
+        if provider != .claude {
             guard status == .idle, let at = explicitCompletedAt,
                   (0..<window).contains(now.timeIntervalSince(at)) else { return nil }
             return at

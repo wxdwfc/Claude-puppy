@@ -1,4 +1,4 @@
-.PHONY: app run stop list watch build clean skin shot hook unhook codex-hook codex-unhook test
+.PHONY: app run stop list watch build clean skin shot hook unhook codex-hook codex-unhook omp-hook omp-unhook test
 
 APP := .build/Puppy.app
 
@@ -47,6 +47,12 @@ codex-hook: build
 
 codex-unhook: build
 	@./.build/debug/Puppy --uninstall-codex-hook
+
+omp-hook:
+	@bash scripts/install-omp.sh install
+
+omp-unhook:
+	@bash scripts/install-omp.sh uninstall
 
 test:
 	swift test
